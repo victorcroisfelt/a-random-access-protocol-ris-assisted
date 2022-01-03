@@ -86,26 +86,40 @@ if __name__ == "__main__":
     mi_lim = om * np.cos(angle_bs) ** 2 / (ell0 ** 2 + (ell0 + ell) ** 2)
     up_lim = om * np.cos(angle_bs) ** 2 / 2 / ell0 ** 2
 
-    beta = np.linspace(lo_lim, up_lim, samples)
+    beta_dl = np.linspace(lo_lim, up_lim, samples)
     om_cos = om * np.cos(angle_bs) ** 2
-    cdf_dl = np.piecewise(beta, [beta <= lo_lim, (beta > lo_lim) * (beta <= mi_lim), (beta > mi_lim) * (beta <= up_lim), beta > up_lim],
+    cdf_dl = np.piecewise(beta_dl, [beta_dl <= lo_lim, (beta_dl > lo_lim) * (beta_dl <= mi_lim), (beta_dl > mi_lim) * (beta_dl <= up_lim), beta_dl > up_lim],
                           [0,
                            lambda x: 1 / ell ** 2 * ((ell0 + ell) ** 2 - (ell0 + ell) * np.sqrt(om_cos / x - (ell0 + ell) ** 2) - om_cos / x / 2 * np.arctan((2 * (ell0+ell) ** 2 - om_cos / x) / (2 * (ell0 + ell) * np.sqrt(om_cos / x - (ell0+ell) ** 2)))),
                            lambda x: 1 / ell ** 2 * ((ell ** 2 - ell0 ** 2) + ell0 * np.sqrt(om_cos / x - ell0 ** 2) + om_cos / x / 2 * np.arctan((2 * ell0 ** 2 - om_cos / x) / (2 * ell0 * np.sqrt(om_cos / x - ell0 ** 2)))),
                           1])
-
-    pdf_dl = np.piecewise(beta, [beta <= lo_lim, (beta > lo_lim) * (beta <= mi_lim), (beta > mi_lim) * (beta <= up_lim), beta > up_lim],
+    # DL-PDF
+    pdf_dl = np.piecewise(beta_dl, [beta_dl <= lo_lim, (beta_dl > lo_lim) * (beta_dl <= mi_lim), (beta_dl > mi_lim) * (beta_dl <= up_lim), beta_dl > up_lim],
                           [0,
                            lambda x: om_cos / (2 * ell ** 2 * x ** 2) * np.arctan((2 * x * (ell0+ell) ** 2 - om_cos) / (2 * np.sqrt(x) * (ell0 + ell) * np.sqrt(om_cos - x * (ell0+ell) ** 2))),
                            lambda x: - om_cos / (2 * ell ** 2 * x ** 2) * np.arctan((2 * x * ell0 ** 2 - om_cos) / (2 * np.sqrt(x) * ell0 * np.sqrt(om_cos - x * ell0 ** 2))),
                           0])
+
+    # UL-CDF
+    limits = om * np.array([ell0 / (ell0 ** 2 + (ell0 + ell) ** 2),
+                            1 / 2 / (ell0 + ell),
+                            (ell0 + ell) / (ell0 ** 2 + (ell0 + ell) ** 2),
+                            1 / 2 / ell0]) ** 2
+    beta_ul = np.linspace(limits[0], limits[-1], samples)
+    cdf_ul = np.piecewise(beta_ul, [beta_ul <= limits[0], (beta_ul > limits[0]) * (beta_ul <= limits[1]), (beta_ul > limits[1]) * (beta_ul <= limits[2]), (beta_ul > limits[2]) * (beta_ul <= limits[3]), beta_ul > limits[3]],
+                          [0,
+                          lambda x: 1 / ell ** 2 * (- ell0 * (ell0 + ell) - om / 8 / x * (2 * np.sqrt(x / om) * (ell0 + ell) * (np.sqrt(1 - 4 * x * (ell0 + ell) ** 2 / om) - 2) + 2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x/om) * ell0)) * (1 - 2 * np.sqrt(x / om) * ell0) + np.arcsin(2 * np.sqrt(x / om) * (ell0 + ell)) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0))))),
+                          lambda x: 1 + ell0 / ell - om / 8 / x / ell ** 2 * (np.pi + 2 * (x / om) ** (1/4) * (np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0)) * (1 - 2 * np.sqrt(x / om) * ell0) + np.sqrt((ell0 + ell) * (1 - np.sqrt(x / om) * (ell0 + ell))) * (2 * (ell0 + ell) * np.sqrt(x / om) - 1)) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0))) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt((ell0+ell) * (1 - np.sqrt(x / om) * (ell0+ell))))),
+                          lambda x: 1 - (ell0 / ell) ** 2 - om / 8 / x / ell ** 2 * (np.pi - 2 * np.sqrt(x / om) * ell0 * (2 + np.sqrt(1 - 4 * x * ell0 ** 2 / om)) + 2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0)) * (1 - 2 * np.sqrt(x / om) * ell0) - np.arcsin(2 * np.sqrt(x / om) * ell0) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0)))),
+                          1])
+
 
 
     # Plotting
     # DL-CDF
     _, ax = plt.subplots()
     ax.plot(*ecdf(pl_dl), label='empirical')
-    ax.plot(beta, cdf_dl, label='analytical', linestyle='--')
+    ax.plot(beta_dl, cdf_dl, label='analytical', linestyle='--')
     plt.ylabel(r'$F_{B^{\mathrm{DL}}}(\beta)$')
     plt.xlabel(r'$\beta$')
     ax.grid()
@@ -115,7 +129,7 @@ if __name__ == "__main__":
     # DL-PDF
     _, ax = plt.subplots()
     ax.hist(pl_dl, bins=100, density=True, label='empirical')
-    ax.plot(beta, pdf_dl, label='analytical', linestyle='--')
+    ax.plot(beta_dl, pdf_dl, label='analytical', linestyle='--')
     plt.ylabel(r'$f_{B^{\mathrm{DL}}}(\beta)$')
     plt.xlabel(r'$\beta$')
     ax.grid()
@@ -126,6 +140,7 @@ if __name__ == "__main__":
     # UL-CDF
     _, ax = plt.subplots()
     ax.plot(*ecdf(pl_ul), label='empirical')
+    ax.plot(beta_ul, cdf_ul, label='analytical', linestyle='--')
     plt.ylabel(r'$f_{B^{\mathrm{UL}}}(\beta)$')
     plt.xlabel(r'$\beta$')
     ax.grid()
