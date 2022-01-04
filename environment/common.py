@@ -6,6 +6,9 @@ from scipy.constants import c, k
 
 # Global dictionaries
 node_labels = {'BS': 0, 'UE': 1, 'RIS': 2}
+# The following are defined for graphic purpose only
+node_color = {'BS': '#DC2516',  'UE': '#36F507', 'RIS': '#0F4EEA'}
+node_mark = {'BS': 'o', 'UE': 'x', 'RIS': '^'}
 
 
 # Custom distributions
