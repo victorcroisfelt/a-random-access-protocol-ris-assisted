@@ -3,68 +3,63 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-
 from scipy.constants import speed_of_light
+
 
 class Node:
     """Node definition. This class is called by BS, UE, and RIS classes to defining common parameters."""
 
-    def __init__(self, label: str, pos: np.ndarray, ant: int, gain: float, max_pow: float, noise_power: float):
+    def __init__(self,
+                 n: int,
+                 pos: np.ndarray,
+                 ant: int or np.ndarray = None,
+                 gain: float or np.ndarray = None,
+                 max_pow: float or np.ndarray = None,
+                 noise_power: float or np.ndarray = None):
         """Constructor of the Node class.
 
         Parameters
         ----------
-        :param label: str representing a label for representation purpose.
-        :param pos: np.ndarray 1 x 2 representing the x,y cartesian coordinates of the node.
-        :param ant: int > 0, number of antennas of the node.
+        :param n: number of nodes.
+        :param pos: np.ndarray n x 3 representing the x,y,z cartesian coordinates of each node.
+        :param ant: np.ndarray n x 1 of int > 0, number of antennas of the node.
         :param gain: float representing the antenna gain of the node.
         :param max_pow: float representing the max power available on transmission.
         """
         # Control on INPUT
-        if pos.shape != (2,):
-            raise ValueError(f'Illegal positioning: for Node, '
-                             f'coord.shape must be (2,), '
-                             f'instead it is {pos.shape}')
-        elif ant < 1 or (not isinstance(ant, int)):
-            raise ValueError('ant must be a single integer >= 1')
-        elif not isinstance(gain, (float, int)):
-            raise ValueError('gain [dB] must be a single number')
-        elif not isinstance(max_pow, (float, int)):
-            raise ValueError('max_pow [dBm] must be a float or integer')
-
+        if pos.shape != (n, 3):
+            raise ValueError(f'Illegal positioning: for Node, pos.shape must be ({n},3), instead it is {pos.shape}')
+        # Input reformat
+        if not isinstance(ant, np.ndarray):
+            ant = np.array([ant] * n)
+        if not isinstance(gain,  np.ndarray):
+            gain = np.array([gain] * n)
+        if not isinstance(max_pow,  np.ndarray):
+            max_pow = np.array([max_pow] * n)
+        if not isinstance(noise_power,  np.ndarray):
+            noise_power = np.array([noise_power] * n)       
         # Set attributes
-        self.label = label
+        self.n = n
         self.pos = pos
         self.ant = ant
         self.gain = gain
-        self.max_pow = max_pow
-        self.id = None  # id of the user, initialized by the box.place_node method
-        self.ord = None  # id of the user in multi-cell, initialized by the box.place_node method. Not used
-
+        self.max_pow = max_pow       
         # Noise definition
-        self.noise = RxNoise(dBm=noise_power)
-
-    # Operator definition
-    def __lt__(self, other):
-        if isinstance(other, (self.__class__, self.__class__.__bases__)):
-            return True if self.id < other.id else False
-        else:
-            raise TypeError('< applied for element of different classes')
-
-    def __repr__(self):
-        return f'{self.id}-{self.label:3}'
+        self.noise = RxNoise(dBm=noise_power)    
 
 
 class BS(Node):
     """BS definition."""
 
-    def __init__(self, pos: np.ndarray, ant: int, gain: float, max_pow: float, noise_power: float):
+    def __init__(self, n: int, pos: np.ndarray, ant: int, gain: float, max_pow: float, noise_power: float):
         """BS class for simulation purpose.
 
-        :param pos: ndarray 1 x 2,  representing the x,y cartesian coordinates of the node.
+        :param n: int, number of BS
+        :param pos: ndarray n x 3, the x,y cartesian coordinates of the node.
         :param ant: int > 0, number of antennas of the node. Default value is 1.
         :param gain : float [dBi] representing antenna gain of the node. Default is 5.85 dB
         :param max_pow: float [dBm], max power available on transmission. Default is 43 dBm.
+        :param noise_power: float [dBm], noise power at RF chain
         """
         # Default values
         if ant is None:
@@ -75,24 +70,28 @@ class BS(Node):
             max_pow = 43
         if noise_power is None:
             noise_power = -92.5  # [dBm] TODO: update to a reasonable value
-
         # Init parent class
-        super(BS, self).__init__('BS', pos, ant, gain, max_pow, noise_power)
+        super(BS, self).__init__(n, pos, ant, gain, max_pow, noise_power)
+
+    def __repr__(self):
+        return f'BS-{self.n}'
 
 
 class UE(Node):
     """User definition."""
 
-    def __init__(self, pos: np.ndarray, ant: int = None, gain: float = None,
-                 max_pow: float = None, noise_power: float = None):
+    def __init__(self, 
+                 n: int, 
+                 pos: np.ndarray,
+                 ant: int or np.ndarray = None, 
+                 gain: float or np.ndarray = None,
+                 max_pow: float or np.ndarray = None, 
+                 noise_power: float or np.ndarray = None):
         """User class for simulation purpose.
 
-        :param pos: ndarray 1 x 2,
-                it represents the x,y cartesian coordinates of the node.
-        :param ant: int > 0
-                number of antennas of the node. Default value is 1.
-        :param gain: float, [dBi]
-                It represents the antenna gain of the node. Default value 2.15.
+        :param pos: ndarray n x 3, the x,y,z cartesian coordinates of the node.
+        :param ant: int > 0, number of antennas of the node. Default value is 1.
+        :param gain: float [dBi], antenna gains of the node. Default value 2.15.
         :param max_pow: float [dBm], max power available on transmission in dBm.
                 Default value is 24 dBm.
         """
@@ -105,9 +104,11 @@ class UE(Node):
             max_pow = 24
         if noise_power is None:
             noise_power = -92.5  # [dBm] TODO: update to a reasonable value
-
         # Init parent class
-        super(UE, self).__init__('UE', pos, ant, gain, max_pow, noise_power)
+        super(UE, self).__init__(n, pos, ant, gain, max_pow, noise_power)
+
+    def __repr__(self):
+        return f'UE-{self.n}'
 
 
 class RxNoise:
@@ -115,7 +116,7 @@ class RxNoise:
     # TODO: match with ambient noise and noise figure
     """
 
-    def __init__(self, linear=None, dB=None, dBm=-92.5):
+    def __init__(self, linear=None, dB=None, dBm: np.ndarray = np.array([-92.5])):
         if (linear is None) and (dB is None):
             self.dBm = dBm
             self.dB = dBm - 30
@@ -138,29 +139,56 @@ class RxNoise:
                 f'dB={self.dB:.1f}, dBm={self.dBm:.1f})')
 
 
-class RIS:
+class RIS(Node):
     """RIS definition. A class that defines a reflective intelligent surface (RIS)."""
 
     # Class variables
-    carrier_frequency = 3e9
-    wavelength = speed_of_light / carrier_frequency
-    wavenumber = 2 * np.pi / wavelength
-    pos = np.array([0, 0, 0])
-    incidence_angle = np.deg2rad(30)
+    # carrier_frequency = 3e9
+    # wavelength = speed_of_light / carrier_frequency
+    # wavenumber = 2 * np.pi / wavelength
+    # pos = np.array([0, 0, 0])
+    # incidence_angle = np.deg2rad(30)
 
-    def __init__(self, Na=4, Nb=4, S=4):
+    def __init__(self,
+                 n: int,
+                 pos: np.ndarray,
+                 Na: int = None,
+                 Nb: int = None,
+                 S: int = None,
+                 wavelength: float = None):
+        """ Constructor.
 
+        :param n: int, number of RIS
+        :param pos: ndarray n x 3, the x,y,z cartesian coordinates of each node.
+        :param Na: int > 0, number of antennas of the node. Default value is 1.
+        :param Nb:
+        :param S:
+        """
+        # Default values
+        if Na is None:
+            Na = 4
+        if Nb is None:
+            Nb = 4
+        if S is None:
+            S = 4
+        if wavelength is None:
+            wavelength = 0.1
         # Instance variables
         self.num_els = Na * Nb  # total number of elements
         self.num_els_v = Na  # vertical number of elements
         self.num_els_h = Nb  # horizontal number of elements
         self.num_configs = S  # number of configurations
 
+        # Initialize the parent, considering that the antenna gain of the ris is 0.0,
+        # max_pow and noise_power are -np.inf,
+        # the number of antenna is the number or RIS elements
+        super(RIS, self).__init__(n, pos, self.num_els, 0.0, -np.inf, -np.inf)
+        # In this way every ris instantiated is equal to the others
+
         # Store index of elements considering total number
         self.els = np.arange(self.num_els)
-
         # Each antenna element is a square of size lambda/4
-        self.size_el = (self.wavelength / 4)
+        self.size_el = wavelength / 4
 
         # Compute sizes
         self.size_h = Nb * self.size_el  # horizontal size [m]
@@ -172,16 +200,15 @@ class RIS:
 
         # Configure RIS
         self.set_configs = self.configuration()
-
-        self.Phi_dl = self.dl_reflection_coefficients()
+        # TODO: I would suggest to use dl_reflection_coefficient in the computation of the channel gain, not here
+        # self.Phi_dl = self.dl_reflection_coefficients()
 
     def indexing_els(self):
         """
-        Define a array of tuples where each represents the id of an element.
+        Define an array of tuples where each represents the id of an element.
 
         Returns
         -------
-
 
         """
         # Get vertical ids
@@ -201,7 +228,6 @@ class RIS:
 
         Returns
         -------
-
 
         """
         # Compute offsets
@@ -270,7 +296,7 @@ class RIS:
 
         """
         # Go along x dimension
-        x_range = np.arange(-self.size_h / 2, +self.size_h / 2, self.size_el)  # [m]
+        x_range = np.arange(-self.size_h / 2, + self.size_h / 2, self.size_el)  # [m]
 
         # Check if the size of x_range meets the number of horizonal els
         if len(x_range) != self.num_els_h:
@@ -281,11 +307,13 @@ class RIS:
 
         # Go through all configurations
         for config, theta_s in enumerate(self.set_configs):
-            local_surface_phase[config, :] = (2 * np.pi * np.mod(
-                self.wavenumber * (-np.sin(theta_s) + np.sin(self.incidence_angle)) * x_range, 1))
+            local_surface_phase[config, :] = (2 * np.pi * np.mod(self.wavenumber * (-np.sin(theta_s) + np.sin(self.incidence_angle)) * x_range, 1))
 
         # Store the reflection coefficient of each element for each by repeating
         # the same local surface phase along x-axis
         Phi_dl = np.tile(local_surface_phase, rep=self.num_els_h)
 
         return Phi_dl
+
+    def __repr__(self):
+        return f'RIS-{self.n}'

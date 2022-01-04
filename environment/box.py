@@ -3,191 +3,141 @@
 
 import numpy as np
 import environment.common as common
-from environment.nodes import UE, BS
+from environment.nodes import UE, BS, RIS
 import matplotlib.pyplot as plt
-import matplotlib.lines as mln
-import warnings
 from collections import OrderedDict
-from matplotlib.patches import Circle
 from matplotlib import rc
-from tabulate import tabulate
+from scipy.constants import speed_of_light
+
+# TODO: 3-dimensional position vector
 
 
 class Box:
     """Class Box creates an environment square box with specific parameters and nodes."""
-    def __init__(self, ell: float, ell0: float,
-                 pl_exp: float = 2, sh_std: float = -np.inf, nid: int = 0,
+    def __init__(self,
+                 ell: float, ell0: float,
+                 carrier_frequency: float = 3e9, bandwidth: float = 180e3,
+                 pl_exp: float = 2, sh_std: float = -np.inf,
                  rng: np.random.RandomState = None):
         """Constructor of the cell.
 
-        :param ell : float, side length of the users (nodes can be placed between outer and inner).
-        :param ell0 : float, distance between the x-axis and the lowest y-coordinate of the box.
-        :param pl_exp: float, path loss exponent in the cell (standard is 2 as free space).
-        :param sh_std: float, standard deviation of the shadowing phenomena (standard is 0 ) .
+        :param ell: float, side length of the users (nodes can be placed between outer and inner).
+        :param ell0: float, distance between the x-axis and the lowest y-coordinate of the box.
+        :param carrier_frequency: float [Hz], central frequency of the environment.
+        :param bandwidth: float [Hz], bandwidth of the signal,
+        :param pl_exp: float, path loss exponent in the cell (default is 2 as free space).
+        :param sh_std: float, standard deviation of the shadowing phenomena (default is 0).
         :param nid: int, number representing the id of the cell (for multi-cell processing).
         """
         if (ell < ell0) or (ell0 <= 0) or (ell <= 0):
             raise ValueError('ell and ell0 must be >= 0 and ell > ell0')
         elif pl_exp <= 0:
             raise ValueError('pl_exp must be >= 0')
-        # Physical attributes
+        # Physical attributes of the box
         self.pos = np.sqrt(2) * (ell0 + ell / 2) * np.array([1, 1])  # center coordinates (I don't know if useful)
         self.ell = ell
         self.ell0 = ell0
+        # Propagation environment
         self.pl_exp = pl_exp
         self.sh_std = sh_std
-        self.id = nid
+        # Bandwidth available
+        self.fc = carrier_frequency
+        self.wavelength = speed_of_light / carrier_frequency
+        self.wavenumber = 2 * np.pi / self.wavelength
+        self.bw = bandwidth
         # Random State generator
         self.rng = np.random.RandomState() if rng is None else rng
-        # List of cells data (multi-cell processing)
-        self.prev = 0       # store the number of nodes of all previous instantiated cells
-        self.next = None    # a pointer to the next instantiated cell
-        # BS
-        self.node = []
+        # Channel gain
+        self.chan_gain = None
+        # nodes
+        self.bs_height = 10     # [m]
+        self.bs = None
+        self.ue = None
+        self.ris = None
 
-    @property
-    def noise_vector(self):
-        return np.array([n.noise.linear for n in self.node])
+    def place_bs(self, pos: np.ndarray = None, ant: int = None, gain: float = None,
+                 max_pow: float = None, noise_power: float = None):
+        """Place a single bs in the environment. Following the paper environment,
+        the BS is always in the second quadrant of the coordinate system. If a new BS is set the old one is canceled.
 
-    def __lt__(self, other):    # (multi-cell processing)
-        if isinstance(other, self.__class__):
-            return True if self.id < other.id else False
-        else:
-            raise TypeError('< applied for element of different classes')
-
-    def place_bs(self,
-                 n: int = 1, pos: np.ndarray = None, ant: int or list = None, gain: float or list = None,
-                 max_pow: float or list = None, noise_power: float or list = None):
-        """Place a predefined number n of bs in the environment. Following the paper environment,
-        the BS is always in the second quadrant of the coordinate system.
-
-        :param n: int > 0, number of nodes to be placed.
-        :param pos: N x 2 ndarray; row i represents the r, theta polar coordinates of node i.
-            If None, the position is randomly selected.
-        :param ant: list of int > 0 representing the number of antennas of each bs;
+        :param pos: 1 x 2 ndarray; row i represents the r, theta polar coordinates of node i.
+                If None, the position is randomly selected.
+        :param ant: int > 0 representing the number of antennas of each bs;
                 if a single int, each bs will have same number of antennas.
-        :param gain: sequence of int or float, representing the antenna gain used in the path loss computation;
+        :param gain: float, representing the antenna gain used in the path loss computation;
                 if a single value, each bs will have same gain.
-        :param max_pow: sequence of float, representing the maximum power available on the bs;
+        :param max_pow: float, representing the maximum power available on the bs;
                 if a single vale, each bs will have same max_pow.
-        :param noise_power: list of float, representing the noise power in dBm of the RF chain;
+        :param noise_power: float, representing the noise power in dBm of the RF chain;
                 if a single vale, each bs will have same noise_power.
         """
-        # Control on INPUT
-        if not isinstance(n, int) or (n < 0):
-            raise ValueError('N must be int >= 0')
-        elif n == 0:
-            return
-        # Input reformat
-        if not isinstance(ant, list):
-            ant = [ant] * n
-        if not isinstance(gain, list):
-            gain = [gain] * n
-        if not isinstance(max_pow, list):
-            max_pow = [max_pow] * n
-        if not isinstance(noise_power, list):
-            noise_power = [noise_power] * n
-        # Counting the actual nodes
-        n_old = len(self.node)
+        # Compute the position
         if pos is None:
             # if the position is not given, a random position inside a specular box in second quadrant computed
-            pos = self.rng.uniform([-self.ell0, self.ell0], [-self.ell, self.ell], (n, 2))
+            pos = self.rng.uniform([-self.ell0, self.ell0], [-self.ell, self.ell], (1, 2))
         else:   # translate from polar to cardinal
-            pos = np.hstack((pos[:, 0] * np.cos(pos[:, 1]), pos[:, 0] * np.sin(pos[:, 1])))
+            pos = pos[0] * np.array([np.cos(pos[1]), np.sin(pos[1])])
+        # Add third dimension for coherency with RIS
+        pos = np.array([[pos[0], pos[1], self.bs_height]])
         # Append nodes
-        for i in range(n):
-            self.node.append(BS(pos=pos[i], ant=ant[i], gain=gain[i], max_pow=max_pow[i], noise_power=noise_power[i]))
-        # Order nodes
-        self.order_nodes()
-        self.update_id()
+        self.bs = BS(1, pos, ant, gain, max_pow, noise_power)
 
-    def wipe_bs(self):
-        """This method wipe out the bs in the node list"""
-        users = []
-        for n in self.node:
-            if isinstance(n, UE):
-                users.append(n)
-        self.node = users
-        self.order_nodes()
-        self.update_id()
-
-    def place_ue(self, n: list or int, pos: np.ndarray = None, ant: list or int = None, gain: list or float = None,
-                 max_pow: list or float = None, noise_power: list or float = None):
-        """Place a predefined number n of nodes in the cell.
+    def place_ue(self, n: int, pos: np.ndarray = None, ant: int or np.ndarray = None, gain: float or np.ndarray = None,
+                 max_pow: float or np.ndarray = None, noise_power: float or np.ndarray = None):
+        """Place a predefined number n of nodes in the box. If a new set of UE is set the old one is canceled.
 
         :param n: int > 0, representing the number of user to be placed.
         :param pos: N x 2 ndarray; row i represents the r, theta polar coordinates of node i.
-        :param ant: list of int > 0 representing the number of antennas of each node;
+        :param ant: ndarray of int > 0 representing the number of antennas of each node;
                     if a single value, each user will have same number of antennas.
-        :param gain: list of int or float, representing the antenna gain used in the path loss computation;
+        :param gain: ndarray of float, representing the antenna gain used in the path loss computation;
                     if a single value, each user will have same gain values.
-        :param max_pow: list of int or float, representing the maximum power available on the node;
+        :param max_pow: ndarray of float, representing the maximum power available on the node;
                     if a single value, each node will have same max_pow.
+        :param noise_power: ndarray of float, representing the noise power in dBm of the RF chain;
+                if a single vale, each bs will have same noise_power.
         """
         # Control on INPUT
         if not isinstance(n, int) or (n < 0):   # Cannot add a negative number od nodes
             raise ValueError('N must be int >= 0')
         elif n == 0:    # No node to be added
             return
-        # Counting the present nodes
-        n_old = len(self.node)
-        # Input reformat
-        if not isinstance(ant, list):
-            ant = [ant] * n
-        if not isinstance(gain, list):
-            gain = [gain] * n
-        if not isinstance(max_pow, list):
-            max_pow = [max_pow] * n
-        if not isinstance(noise_power, list):
-            noise_power = [noise_power] * n
-        # In case of UE
+        # Compute position
         if pos is None:
             # if the position is not given, a random position inside the box is computed.
-            pos = self.rng.uniform(self.ell0, self.ell, (n, 2))
+            pos = np.hstack((self.rng.uniform(self.ell0, self.ell, (n, 2)), np.zeros((n, 1))))
         else:  # translate from polar to cardinal
-            pos = np.hstack((pos[:, 0] * np.cos(pos[:, 1]), pos[:, 0] * np.sin(pos[:, 1])))
+            try:
+                pos = np.vstack((pos[:, 0] * np.cos(pos[:, 1]), pos[:, 0] * np.sin(pos[:, 1]))).T
+                # Add third dimension for coherency with RIS
+                pos = np.hstack((pos[:, 0], pos[:, 1], np.zeros((n, 1))))
+            except IndexError:
+                # Add third dimension for coherency with RIS
+                pos = pos[0] * np.array([[np.cos(pos[1]), np.sin(pos[1]), 0]])
         # Append nodes
-        for i in range(n):
-            self.node.append(UE(pos=pos[i], ant=ant[i], gain=gain[i], max_pow=max_pow[i], noise_power=noise_power[i]))
-        # Order nodes
-        self.order_nodes()
-        self.update_id()
+        self.ue = UE(n, pos, ant, gain, max_pow, noise_power)
 
-    def wipe_ue(self):
-        """This method wipe out the users in the node list"""
-        bs = []
-        for n in self.node:
-            if isinstance(n, BS):
-                bs.append(n)
-        self.node = bs
-        self.order_nodes()
-        self.update_id()
+    def place_ris(self, pos: np.ndarray = None, v_els: list or int = None,
+                  h_els: list or int = None, configs: list or int = None):
+        """Place a single RIS in the environment. If a new RIS is set the old one is canceled.
 
-    def order_nodes(self):
-        """The method orders the nodes following the order given by type: 'BS', 'UE'
+        :param n: int > 0, representing the number of RIS to be placed.
+        :param pos: N x 2 ndarray; row i represents the r, theta polar coordinates of node i.
+        :param v_els: list of int > 0 representing the number of vertical element of each node;
+                    if a single value, each RIS will have same number of v_els.
+        :param h_els: list of int > 0 representing the number of horizontal element of each node;
+                    if a single value, each RIS will have same number of h_els.
+        :param configs: list of int > 0, representing the maximum number of configuration available;
+                    if a single value, each RIS will have same configs.
         """
-        self.node.sort(key=lambda x: (common.node_labels[x.label]))
-
-    def update_id(self):
-        """ The method updates the id of each node in the cell.
-        It propagates the updating to the next cell instantiated.
-
-        Returns
-        ______
-        node.id : tuple,
-            the id of the node which is formed by the id of the cell and
-            the number of the node in the cell, following the order given
-            by order_nodes.
-        node.ord : int,
-            an ordered counter of the node built according to the channel
-            gain tensor order.
-        """
-        for i, node in enumerate(self.node):
-            node.id = (self.id, i)
-            node.ord = self.prev + i
-        if self.next is not None:
-            self.next.prev = self.prev + len(self.node)
-            self.next.update_id()
+        # Compute the position
+        if pos is None:
+            # if the position is not given, the origin is given
+            pos = np.array([[0, 0, 0]])
+        else:  # translate from polar to cardinal
+            pos = pos[0] * np.array([[np.cos(pos[1]), np.sin(pos[1]), 0]])
+        # Append nodes
+        self.ris = RIS(1, pos, v_els, h_els, configs, self.wavelength)
 
     # Channel build
     def build_chan_gain(self):
@@ -261,7 +211,6 @@ class Box:
 
     def plot_scenario(self):
         """This method will plot the scenario of communication
-        TODO: re-update it
         """
         # LaTeX type definitions
         rc('font', **{'family': 'sans serif', 'serif': ['Computer Modern']})
@@ -270,30 +219,26 @@ class Box:
         fig, ax = plt.subplots()
 
         # Box positioning
-        cell_out = Circle(c.coord, c.r_outer, facecolor='#45EF0605', edgecolor=(0, 0, 0), ls="--", lw=1)
-        cell_in = Circle(c.coord, c.r_inner, facecolor='#37971310', edgecolor=(0, 0, 0), ls="--", lw=0.8)
-        ax.add_patch(cell_out)
-        ax.add_patch(cell_in)
+        box = plt.Rectangle((self.ell0, self.ell0), self.ell, self.ell, ec="black", ls="--", lw=1, fc='#45EF0605')
+        ax.add_patch(box)
         # User positioning
-        delta = c.r_outer / 100
-        plt.text(c.coord[0] + c.r_outer / 2, c.coord[1] + c.r_outer / 2, s=f'cell {c.id}', fontsize=11,
-                 c='#D7D7D7')
-        for n in c.node:
-            plt.scatter(c.coord[0] + n.coord[0], c.coord[1] + n.coord[1],
-                        c=dic.color[n.type], marker=dic.mark[n.dir], label=f'{n.type} ({n.dir})')
-            plt.text(c.coord[0] + n.coord[0], c.coord[1] + n.coord[1] + delta, s=f'{n.id[1]}', fontsize=11)
-        # Plot channel gain link from node to node.useful
-        for n in c.node:
-            if n.type in dic.user_types:
-                ax = plt.gca()
-                x = c.coord[0] + [n.coord[0], n.useful.coord[0]]
-                y = c.coord[1] + [n.coord[1], n.useful.coord[1]]
-                line = mln.Line2D(x, y, color='#CACACA', linewidth=0.4, linestyle='--')
-                ax.add_line(line)
+        delta = self.ell0 / 100
+        # BS
+        plt.scatter(self.bs.pos[:, 0], self.bs.pos[:, 1], c=common.node_color['BS'], marker=common.node_mark['BS'], label='BS')
+        # plt.text(self.bs.pos[:, 0], self.bs.pos[:, 1] + delta, s='BS', fontsize=10)
+        # UE
+        plt.scatter(self.ue.pos[:, 0], self.ue.pos[:, 1], c=common.node_color['UE'], marker=common.node_mark['UE'], label='UE')
+        for k in np.arange(self.ue.n):
+            plt.text(self.ue.pos[k, 0], self.ue.pos[k, 1] + delta, s=f'{k}', fontsize=10)
+        # RIS
+        plt.scatter(self.ris.pos[:, 0], self.ris.pos[:, 1], c=common.node_color['RIS'], marker=common.node_mark['RIS'], label='RIS')
+        # plt.text(self.ris.pos[:, 0], self.ris.pos[:, 1] + delta, s='RIS', fontsize=10)
         # Set axis
-        ax.axis('equal')
+        # ax.axis('equal')
         ax.set_xlabel('$x$ [m]')
         ax.set_ylabel('$y$ [m]')
+        # limits
+        ax.set_ylim(ymin=-self.ell0/2)
         # Legend
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = OrderedDict(zip(labels, handles))
@@ -360,3 +305,8 @@ class Box:
     #             f'\n\tcoef:\tPL_exp = {self.pl_exp:1},'
     #             f'\tSH = {self.sh_std:02} [dB]'
     #             f'\n\tnodes:\t{counter}\n')
+
+    # Properties
+    @property
+    def noise_vector(self):
+        return np.array([n.noise.linear for n in self.node])
