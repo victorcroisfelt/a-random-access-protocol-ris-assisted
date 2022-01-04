@@ -9,9 +9,11 @@ K = 5
 
 # Initialize the environment
 box = Box(ell, ell0)
-# box. place_bs(pos=np.array([30, np.deg2rad(45)]))
-box.place_bs()
+box.place_bs(pos=np.array([30, np.deg2rad(90 + 45)]))
+# box.place_bs()
 box.place_ue(K)     # place K users
+box.place_ris()
+box.plot_scenario()
 
-box.build_chan_gain()   # still work in progress
-# box.plot_scenario()    # still not working
+# box.build_chan_gain()   # still work in progress
+
