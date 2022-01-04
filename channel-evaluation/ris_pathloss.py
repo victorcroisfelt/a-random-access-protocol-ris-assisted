@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 # Preamble
 ########################################
 
-axis_font = {'size':'8'}
+axis_font = {'size': '8'}
 
 plt.rcParams.update({'font.size': 8})
 
@@ -28,7 +28,7 @@ matplotlib.rc('xtick', labelsize=8)
 matplotlib.rc('ytick', labelsize=8)
 
 matplotlib.rc('text', usetex=True)
-matplotlib.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+matplotlib.rcParams['text.latex.preamble'] = r"\usepackage{amsmath}"
 
 ########################################
 # Private functions

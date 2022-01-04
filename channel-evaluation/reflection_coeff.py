@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 # Preamble
 ########################################
 
-axis_font = {'size':'8'}
+axis_font = {'size': '8'}
 
 plt.rcParams.update({'font.size': 8})
 
@@ -29,7 +29,7 @@ matplotlib.rc('xtick', labelsize=8)
 matplotlib.rc('ytick', labelsize=8)
 
 matplotlib.rc('text', usetex=True)
-matplotlib.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+matplotlib.rcParams['text.latex.preamble'] = r"\usepackage{amsmath}"
 
 ########################################
 # Private functions
@@ -52,7 +52,7 @@ def quant(x, bits):
     -------
 
     yk : array of floats
-        quantized version of the iput signal
+        quantized version of the input signal
     """
 
     # Obtain step size
@@ -75,10 +75,10 @@ def quant(x, bits):
 ########################################
 
 # Physical parameters
-c = 3e8 # speed of light
-fc = 3e9 # carrier frequency
-wavelengh = c/fc # wavelength
-omega = 2*np.pi/wavelengh # wavenumber
+c = 3e8     # speed of light
+fc = 3e9    # carrier frequency
+wavelengh = c/fc    # wavelength
+omega = 2*np.pi/wavelengh   # wavenumber
 
 # Angle of incidence
 theta_i = np.radians(30)
@@ -146,8 +146,8 @@ for cc, theta_s in enumerate(configs):
     # Compute discretize version
     discretized = quant((np.degrees(phi_r_dl[:, cc])/180) - 1, bits=3)
 
-    ax.plot(x_range/wavelengh, np.degrees(phi_r_dl[:, cc]), linewidth=1.5, linestyle=lines[cc], label=r"$\theta_r=" + str(legends[cc]) + "^\circ$")
-    ax.plot(x_range/wavelengh, 180*(discretized + 1), linewidth=1.5, linestyle=lines[cc], label=r"$\theta_r=" + str(legends[cc]) + "^\circ$")
+    ax.plot(x_range/wavelengh, np.degrees(phi_r_dl[:, cc]), linewidth=1.5, linestyle=lines[cc], label=r"$\theta_r=" + str(legends[cc]) + r"^\circ$")
+    ax.plot(x_range/wavelengh, 180*(discretized + 1), linewidth=1.5, linestyle=lines[cc], label=r"$\theta_r=" + str(legends[cc]) + r"^\circ$")
 
 ax.set_xlabel(r"$x/\lambda$")
 ax.set_ylabel(r"local surface phase $\phi^{\text{DL}}_r(x)$")
