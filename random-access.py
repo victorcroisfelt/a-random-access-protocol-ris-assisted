@@ -1,25 +1,41 @@
 from environment.box import Box
 import numpy as np
 
+########################################
 # General parameters
+########################################
+
+# Square length
 ell = 100
 ell0 = 10
 
-K = 5
-
-#
-
+# Number of pilots
 taup = 10
 
-# Initialize the environment
-box = Box(ell, ell0, taup=taup)
+########################################
+# Simulation parameters
+########################################
 
-box.place_bs(pos_polar=np.array ( [30, np.deg2rad(90 + 45)] ) )
-box.place_ue(K)     # place K users
+# Initialize environment
+box = Box(ell, ell0)
+
+# Place BS and RIS (fixed entities)
+box.place_bs(pos_polar=np.array([[30, np.deg2rad(90 + 45)]]))
 box.place_ris()
 
+# Number of active UEs
+K = 10
+
+# Place UEs
+box.place_ue(K)
+
+# Evaluate deterministic channel model
+channel_gains_dl, channel_gains_ul, phase_shifts_bs, phase_shifts_ue = box.get_channel_model()
+
+
+
 box.plot_scenario()
-# box.build_chan_gain()   # still work in progress
+
 
 
 def dl_reflection_coefficients(self):

@@ -9,8 +9,6 @@ from collections import OrderedDict
 from matplotlib import rc
 from scipy.constants import speed_of_light
 
-# TODO: 3-dimensional position vector
-
 
 class Box:
     """Class Box creates an environment square box with specific parameters and nodes."""
@@ -18,7 +16,8 @@ class Box:
                  ell: float, ell0: float,
                  carrier_frequency: float = 3e9, bandwidth: float = 180e3,
                  pl_exp: float = 2, sh_std: float = -np.inf,
-                 rng: np.random.RandomState = None):
+                 rng: np.random.RandomState = None
+                 ):
         """Constructor of the cell.
 
         :param ell: float, side length of the users (nodes can be placed between outer and inner).
@@ -27,176 +26,200 @@ class Box:
         :param bandwidth: float [Hz], bandwidth of the signal,
         :param pl_exp: float, path loss exponent in the cell (default is 2 as free space).
         :param sh_std: float, standard deviation of the shadowing phenomena (default is 0).
-        :param nid: int, number representing the id of the cell (for multi-cell processing).
         """
         if (ell < ell0) or (ell0 <= 0) or (ell <= 0):
             raise ValueError('ell and ell0 must be >= 0 and ell > ell0')
         elif pl_exp <= 0:
             raise ValueError('pl_exp must be >= 0')
+
         # Physical attributes of the box
         self.pos = np.sqrt(2) * (ell0 + ell / 2) * np.array([1, 1])  # center coordinates (I don't know if useful)
         self.ell = ell
         self.ell0 = ell0
+
         # Propagation environment
         self.pl_exp = pl_exp
         self.sh_std = sh_std
+
         # Bandwidth available
         self.fc = carrier_frequency
         self.wavelength = speed_of_light / carrier_frequency
         self.wavenumber = 2 * np.pi / self.wavelength
         self.bw = bandwidth
+
         # Random State generator
         self.rng = np.random.RandomState() if rng is None else rng
+
         # Channel gain
         self.chan_gain = None
-        # nodes
+
+        # Nodes
         self.bs_height = 10     # [m]
         self.bs = None
         self.ue = None
         self.ris = None
 
-    def place_bs(self, pos: np.ndarray = None, ant: int = None, gain: float = None,
+    def place_bs(self, pos_polar: np.ndarray = None, ant: int = None, gain: float = None,
                  max_pow: float = None, noise_power: float = None):
-        """Place a single bs in the environment. Following the paper environment,
-        the BS is always in the second quadrant of the coordinate system. If a new BS is set the old one is canceled.
+        """Place a single BS in the environment. Following the paper environment, the BS is always located at the second
+        quadrant of the coordinate system. If a new BS is set the old one is canceled.
 
-        :param pos: 1 x 2 ndarray; row i represents the r, theta polar coordinates of node i.
-                If None, the position is randomly selected.
-        :param ant: int > 0 representing the number of antennas of each bs;
-                if a single int, each bs will have same number of antennas.
-        :param gain: float, representing the antenna gain used in the path loss computation;
-                if a single value, each bs will have same gain.
-        :param max_pow: float, representing the maximum power available on the bs;
-                if a single vale, each bs will have same max_pow.
-        :param noise_power: float, representing the noise power in dBm of the RF chain;
-                if a single vale, each bs will have same noise_power.
+        :param pos_polar: ndarray of shape (2, 1)
+            Radius and positional angle of the BS with respect to the positive horizontal axis. If None, the position is
+            randomly selected.
+
+        :param ant: int > 0
+            Number of BS antennas.
+
+        :param gain: float
+            BS antenna gain G_b.
+
+        :param max_pow: float
+           Maximum power available at the BS.
+
+        :param noise_power: float
+            Represent the noise power in dBm of the BS RF chain.
         """
         # Compute the position
-        if pos is None:
+        if pos_polar is None:
             # if the position is not given, a random position inside a specular box in second quadrant computed
-            pos = self.rng.uniform([-self.ell0, self.ell0], [-self.ell, self.ell], (1, 2))
+            pos = self.rng.uniform([-self.ell0, self.ell0], [-self.ell, self.ell], (2, 1))
         else:   # translate from polar to cardinal
-            pos = pos[0] * np.array([np.cos(pos[1]), np.sin(pos[1])])
+            pos = pos_polar[0][0] * np.array([np.cos(pos_polar[0][1]), np.sin(pos_polar[0][1])])
+
         # Add third dimension for coherency with RIS
         pos = np.array([[pos[0], pos[1], self.bs_height]])
+
         # Append nodes
         self.bs = BS(1, pos, ant, gain, max_pow, noise_power)
 
-    def place_ue(self, n: int, pos: np.ndarray = None, ant: int or np.ndarray = None, gain: float or np.ndarray = None,
-                 max_pow: float or np.ndarray = None, noise_power: float or np.ndarray = None):
-        """Place a predefined number n of nodes in the box. If a new set of UE is set the old one is canceled.
+    def place_ue(self, n: int, pos_polar: np.ndarray = None, ant: int or np.ndarray = None,
+                 gain: float or np.ndarray = None, max_pow: float or np.ndarray = None,
+                 noise_power: float or np.ndarray = None):
+        """Place a predefined number n UEs in the box. If a new set of UE is set the old one is canceled.
 
-        :param n: int > 0, representing the number of user to be placed.
-        :param pos: N x 2 ndarray; row i represents the r, theta polar coordinates of node i.
-        :param ant: ndarray of int > 0 representing the number of antennas of each node;
-                    if a single value, each user will have same number of antennas.
-        :param gain: ndarray of float, representing the antenna gain used in the path loss computation;
-                    if a single value, each user will have same gain values.
-        :param max_pow: ndarray of float, representing the maximum power available on the node;
-                    if a single value, each node will have same max_pow.
-        :param noise_power: ndarray of float, representing the noise power in dBm of the RF chain;
-                if a single vale, each bs will have same noise_power.
+        :param n: int > 0
+           Number of UEs to be placed.
+
+        :param pos_polar: ndarray of shape (n, 2)
+            Radius and positional angle of each UE with respect to the positive horizontal axis. If None, the position
+            is randomly selected.
+
+        :param ant: ndarray of int and shape (n, )
+            Represent the number of antennas of each node. If a single value, each UE will have same number of antennas.
+
+        :param gain: ndarray of shape (n, )
+            Represent the antenna gain used in the path loss computation. If a single value, each UE will have same
+            gain values.
+
+        :param max_pow: ndarray of shape (n, )
+            Represent the maximum power available on each UE. If a single value, each UE will have same max_pow.
+
+        :param noise_power: ndarray of shape (n, )
+            Represent the noise power in dBm of the RF chain. If a single vale, each bs will have same noise_power.
         """
         # Control on INPUT
         if not isinstance(n, int) or (n < 0):   # Cannot add a negative number od nodes
             raise ValueError('N must be int >= 0')
         elif n == 0:    # No node to be added
             return
+
         # Compute position
-        if pos is None:
-            # if the position is not given, a random position inside the box is computed.
+        if pos_polar is None:
+            # if the position is not given, a random position inside the box is computed
             pos = np.hstack((self.rng.uniform(self.ell0, self.ell, (n, 2)), np.zeros((n, 1))))
+
         else:  # translate from polar to cardinal
             try:
-                pos = np.vstack((pos[:, 0] * np.cos(pos[:, 1]), pos[:, 0] * np.sin(pos[:, 1]))).T
+                pos = np.vstack((pos_polar[:, 0] * np.cos(pos_polar[:, 1]), pos_polar[:, 0] * np.sin(pos_polar[:, 1]))).T
                 # Add third dimension for coherency with RIS
                 pos = np.hstack((pos[:, 0], pos[:, 1], np.zeros((n, 1))))
             except IndexError:
                 # Add third dimension for coherency with RIS
                 pos = pos[0] * np.array([[np.cos(pos[1]), np.sin(pos[1]), 0]])
+
         # Append nodes
         self.ue = UE(n, pos, ant, gain, max_pow, noise_power)
 
-    def place_ris(self, pos: np.ndarray = None, v_els: list or int = None,
+    def place_ris(self, pos_polar: np.ndarray = None, v_els: list or int = None,
                   h_els: list or int = None, configs: list or int = None):
         """Place a single RIS in the environment. If a new RIS is set the old one is canceled.
 
-        :param n: int > 0, representing the number of RIS to be placed.
-        :param pos: N x 2 ndarray; row i represents the r, theta polar coordinates of node i.
-        :param v_els: list of int > 0 representing the number of vertical element of each node;
-                    if a single value, each RIS will have same number of v_els.
-        :param h_els: list of int > 0 representing the number of horizontal element of each node;
-                    if a single value, each RIS will have same number of h_els.
-        :param configs: list of int > 0, representing the maximum number of configuration available;
-                    if a single value, each RIS will have same configs.
+        :param n: int > 0
+            Number of RIS to be placed.
+
+        :param pos_polar: ndarray of shape (2,)
+            Radius and positional angle of the RIS with respect to the positive horizontal axis. If None, the position
+            is randomly selected.
+
+        :param v_els: list of int > 0
+            Number of vertical elements of the RIS.
+
+        :param h_els: list of int > 0
+            Number of horizontal elements of each RIS.
+
+        :param configs: list of int > 0
+            Maximum number of configuration available.
         """
         # Compute the position
-        if pos is None:
-            # if the position is not given, the origin is given
+        if pos_polar is None:
+            # if the position is not given, the origin is adopted
             pos = np.array([[0, 0, 0]])
         else:  # translate from polar to cardinal
-            pos = pos[0] * np.array([[np.cos(pos[1]), np.sin(pos[1]), 0]])
+            pos = pos_polar[0] * np.array([[np.cos(pos_polar[1]), np.sin(pos_polar[1]), 0]])
+
         # Append nodes
         self.ris = RIS(1, pos, v_els, h_els, configs, self.wavelength)
 
     # Channel build
-    def build_chan_gain(self):
-        """Create the list of all possible channel gain in the simulation.
-        TODO: REDO it completely. We must insert the pathloss computation and the phase modeling HERE!
+    def get_channel_model(self):
+        """Compute downlink and uplink channel gains and phase shifts due to wave propagation.
+
         Returns
         -------
-        h : ndarray[f, j, i][k, l]
-            contains all the channel gains, where:
-            [k, l] is the element of the matrix Nr x Nt for the MIMO setting
-            j is the transmitter
-            i is the receiver
-            f is the subcarrier
+        channel_gains_dl : ndarray of shape (K, )
+            Downlink channel gain between the BS and each UE for each RIS element and K UEs.
+
+        channel_gains_ul : ndarray of shape (K, )
+            Uplink channel gain between the BS and each UE for each RIS element and K UEs.
+
+        phase_shifts_bs : ndarray of shape (N, )
+            Propagation phase shift between the BS and each RIS element for N elements.
+
+        phase_shifts_ue : ndarray of shape (N, )
+            Propagation phase shifts between each UE and each RIS element for K UEs and N elements.
         """
-        # collect data
-        cells = self.cell
-        nodes = self.nodes
-        subs = self.FR
-        d0 = self.frau
-        # Data struct definition
-        data = np.array([[[np.zeros((i.ant, j.ant), dtype=complex)
-                           for i in nodes]
-                          for j in nodes]
-                         for _ in range(subs)])
-        # For loop
-        for f in range(subs):
-            for i, n_i in enumerate(nodes):  # i is the receiver
-                c_i = cells[n_i.id[0]]  # c_i is the cell of the receiver
-                # Channel reciprocity
-                for j, _ in enumerate(nodes[:i]):  # j is the transmitter
-                    data[f, j, i] = data[f, i, j].T
-                # Channel computation
-                for j, n_j in enumerate(nodes[i:], i):  # j is the transmitter
-                    c_j = cells[n_j.id[0]]  # c_j is the cell of the transmitter
-                    # Creating the seed as a function of position and sub. In
-                    # this way users in the same position will experience same
-                    # fading coefficient
-                    s = np.abs(np.sum((f + c_i.coord + n_i.coord + c_j.coord + n_j.coord) * 1e4, dtype=int))
-                    if j != i:  # channel is modeled as a Rayleigh fading
-                        # Computing Path Loss
-                        d = np.linalg.norm(c_i.coord + n_i.coord - c_j.coord - n_j.coord)
-                        pl = 20 * np.log10(4 * np.pi / self.RB.wavelength[f]) - n_i.gain - n_j.gain \
-                             + 10 * c_i.pl_exp * np.log10(d) \
-                             + 10 * ((2 - c_j.pl_exp) * np.log10(d0) + (c_j.pl_exp - c_i.pl_exp) * np.log10(d0))
-                        # Computing Shadowing
-                        sh = common.fading("Shadowing", shape=c_i.sh_std, seed=s)
-                        # Computing fading matrix
-                        fad = common.fading("Rayleigh", seed=s, dim=(n_i.ant, n_j.ant))
-                        # Let the pieces fit
-                        data[f, j, i][np.ix_(range(n_i.ant), range(n_j.ant))] = fad * np.sqrt(
-                            10 ** (-(pl + sh) / 10))
-                    elif n_j.dir == 'FD':  # j == i
-                        # Full Duplex fading is Rice distributed
-                        fad = common.fading("Rice", dim=(n_i.ant, n_j.ant), shape=n_j.r_shape, seed=s)
-                        data[f, j, i][np.ix_(range(n_i.ant), range(n_j.ant))] = fad * np.sqrt(
-                            10 ** (n_i.si_coef / 10))
-                    else:  # j == 1 dir != 'FD'
-                        data[f, j, i][np.ix_(range(n_i.ant), range(n_j.ant))] = np.zeros((n_i.ant, n_j.ant))
-        self.chan_gain = data
+        # Compute distance BS-RIS
+        dist_bs = np.linalg.norm(self.bs.pos - self.ris.pos)
+
+        # Compute distance RIS-UE of shape (K,)
+        dist_ue = np.linalg.norm(self.ue.pos - self.ris.pos, axis=-1)
+
+        # Compute constant Omega_k
+        Omega_ue = self.bs.gain * self.ue.gain * self.ris.area**2 / (4 * np.pi * dist_bs * self.ris.num_els)**2
+
+        # Common factor
+        common = Omega_ue / (dist_ue**2)
+
+        # DL channel gains
+        channel_gains_dl = common * np.cos(self.bs.incidence_angle)**2
+
+        # UL channel gains
+        channel_gains_ul = common * np.cos(self.ue.incidence_angle)**2
+
+        # Compute distance BS-RIS-elements of shape (N,)
+        dist_bs_el = np.linalg.norm(self.bs.pos - self.ris.pos_els, axis=-1)
+
+        # Compute distance BS-RIS-elements of shaspe (K,N)
+        dist_ue_el = np.linalg.norm(self.ue.pos[:, np.newaxis, :] - self.ris.pos_els, axis=-1)
+
+        # BS phase shifts
+        phase_shifts_bs = 2 * np.pi * np.mod(dist_bs_el / self.wavenumber, 1)
+
+        # UE phase shifts
+        phase_shifts_ue = 2 * np.pi * np.mod(dist_ue_el / self.wavenumber, 1)
+
+        return channel_gains_dl, channel_gains_ul, phase_shifts_bs, phase_shifts_ue
 
     # Visualization methods
     def list_nodes(self, label=None):
