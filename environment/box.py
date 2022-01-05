@@ -142,7 +142,7 @@ class Box:
         self.ue = UE(n, pos, ant, gain, max_pow, noise_power)
 
     def place_ris(self, pos_polar: np.ndarray = None, v_els: list or int = None,
-                  h_els: list or int = None, configs: list or int = None):
+                  h_els: list or int = None, num_configs: list or int = None):
         """Place a single RIS in the environment. If a new RIS is set the old one is canceled.
 
         :param n: int > 0
@@ -159,7 +159,7 @@ class Box:
             Number of horizontal elements of each RIS.
 
         :param configs: list of int > 0
-            Maximum number of configuration available.
+            Number of configurations.
         """
         # Compute the position
         if pos_polar is None:
@@ -169,7 +169,7 @@ class Box:
             pos = pos_polar[0] * np.array([[np.cos(pos_polar[1]), np.sin(pos_polar[1]), 0]])
 
         # Append nodes
-        self.ris = RIS(1, pos, v_els, h_els, configs, self.wavelength)
+        self.ris = RIS(1, pos, v_els, h_els, num_configs, self.wavelength)
 
     # Channel build
     def get_channel_model(self):
@@ -220,6 +220,33 @@ class Box:
         phase_shifts_ue = 2 * np.pi * np.mod(dist_ue_el / self.wavenumber, 1)
 
         return channel_gains_dl, channel_gains_ul, phase_shifts_bs, phase_shifts_ue
+
+    @property
+    def get_reflection_coefficients_dl(self):
+        """
+        Define vectors of DL reflection coefficients that steer the signal towards each configuration, having the
+        azimuth angle of the BS as the incidence angle.
+
+        Returns
+        -------
+        None.
+
+        """
+        # # Go along x dimension
+        # x_range = np.arange(-self.ris.size_h / 2, + self.ris.size_h / 2, self.ris.size_el)  # [m]
+        #
+        # # Check if the size of x_range meets the number of horizontal els
+        # if len(x_range) != self.ris.num_els_h:
+        #     raise Exception("Range over x-axis does not meet number of horizontal Nb elements.")
+
+        # Prepare to save the reflection coefficients for each configuration
+        reflection_coefficients_dl = np.zeros((self.ris.num_configs, self.ris.num_els))
+
+        # Go through all configurations
+        for config, theta_s in enumerate(self.ris.set_configs):
+            reflection_coefficients_dl[config, :] = np.mod(self.wavenumber * (np.sin(self.bs.incidence_angle) - np.sin(theta_s)) * self.ris.pos_els[:, 0], 2 * np.pi)
+
+        return reflection_coefficients_dl
 
     # Visualization methods
     def list_nodes(self, label=None):

@@ -9,8 +9,18 @@ import numpy as np
 ell = 100
 ell0 = 10
 
+# Number of elements
+Na = 10  # vertical
+Nb = 10  # horizontal
+
+# Number of configurations
+S = 4
+
 # Number of pilots
 taup = 10
+
+# Noise power
+sigma2 = 10**(-94.0/10)  # mW
 
 ########################################
 # Simulation parameters
@@ -21,7 +31,7 @@ box = Box(ell, ell0)
 
 # Place BS and RIS (fixed entities)
 box.place_bs(pos_polar=np.array([[30, np.deg2rad(90 + 45)]]))
-box.place_ris()
+box.place_ris(num_configs=S, v_els=Na, h_els=Nb)
 
 # Number of active UEs
 K = 10
@@ -32,42 +42,45 @@ box.place_ue(K)
 # Evaluate deterministic channel model
 channel_gains_dl, channel_gains_ul, phase_shifts_bs, phase_shifts_ue = box.get_channel_model()
 
+# Get DL reflection coefficients
+reflection_coefficients_dl = box.get_reflection_coefficients_dl
 
+# Pilot selection
+pilot_selections = np.random.randint(0, taup, size=K).astype(int)
+
+# Generate noise vector at UEs
+noise_ue = ((sigma2/2)**(1/2))*(np.random.randn(K) + 1j*np.random.randn(K))
+
+# Compute total DL phase shifts of shape (S,K,N)
+phase_shifts_dl = reflection_coefficients_dl[:, np.newaxis, :] - phase_shifts_bs[np.newaxis, np.newaxis, :] - \
+                  phase_shifts_ue[np.newaxis, :, :]  # TODO: Check if signs are correct
+
+# Compute received DL beacon of shape (S,K)
+rx_dl_beacon_ue = np.sqrt(box.bs.max_pow * taup * channel_gains_dl)[np.newaxis, :] * \
+                  np.exp(1j * phase_shifts_dl.sum(axis=-1)) + noise_ue[np.newaxis, :]
+
+# Compute magnitude of received DL beacon in each configuration for each UE
+magnitude_dl_beacon_ue = np.abs(rx_dl_beacon_ue)
+
+# Find the best configuration for each UE in terms of best magnitude
+best_magnitude_config_ue = np.argmax(magnitude_dl_beacon_ue, axis=0)
+
+# Evaluates if this is making sense
+
+print("UE angles = ", np.round(np.rad2deg(np.arctan(box.ue.pos[:, 1] / box.ue.pos[:, 0])), 2))
+print("Best configs = ", best_magnitude_config_ue)
+
+for cc, config in enumerate(box.ris.set_configs):
+    print("RIS config " + str(cc) + " is centered at = ", np.round(np.rad2deg(box.ris.set_configs[cc]), 2))
+
+breakpoint()
 
 box.plot_scenario()
 
 
 
-def dl_reflection_coefficients(self):
-    """
-    Define vectors of DL reflection coefficients that steer the signal towards each configuration, having the
-    azimuth angle of the BS as the incidence angle.
 
-    Returns
-    -------
-    None.
 
-    """
-    # Go along x dimension
-    x_range = np.arange(-self.size_h / 2, + self.size_h / 2, self.size_el)  # [m]
 
-    # Check if the size of x_range meets the number of horizonal els
-    if len(x_range) != self.num_els_h:
-        raise Exception("Range over x-axis does not meet number of horizontal Nb elements.")
-
-    # Prepare to save the reflection coefficients for each configuration
-    local_surface_phase = np.zeros((self.num_configs, self.num_els_h))
-
-    # Go through all configurations
-    for config, theta_s in enumerate(self.set_configs):
-        local_surface_phase[config, :] = (
-                    2 * np.pi * np.mod(self.wavenumber * (-np.sin(theta_s) + np.sin(self.incidence_angle)) * x_range,
-                                       1))
-
-    # Store the reflection coefficient of each element for each by repeating
-    # the same local surface phase along x-axis
-    Phi_dl = np.tile(local_surface_phase, rep=self.num_els_h)
-
-    return Phi_dl
 
 

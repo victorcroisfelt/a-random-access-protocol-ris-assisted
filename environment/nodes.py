@@ -67,7 +67,7 @@ class BS(Node):
         if gain is None:
             gain = 10**(5/10)
         if max_pow is None:
-            max_pow = 43
+            max_pow = 100 # [mW] TODO: agree with name of power variables.. put _dB or _dBm after for variables in different scales
         if noise_power is None:
             noise_power = -92.5  # [dBm] TODO: update to a reasonable value
 
@@ -105,7 +105,7 @@ class UE(Node):
         if gain is None:
             gain = 10**(5/10)
         if max_pow is None:
-            max_pow = 24
+            max_pow = 100
         if noise_power is None:
             noise_power = -92.5  # [dBm] TODO: update to a reasonable value
 
@@ -305,17 +305,19 @@ class RIS(Node):
         -------
         For S = 4, angular resolution is pi/8. The set of configurations evaluates to:
 
-                                 set_configs = [pi/8, pi/4, 3pi/8]
+                                 set_configs = [1/2, 3/2, 5/2, 7/2] * pi/8
 
         0 and pi/2 are not included. Note that the observation space is divided into 4 zones.
         """
-        set_configs = np.arange(0, np.pi / 2, self.angular_resolution)
+        set_configs = np.arange(self.angular_resolution / 2, np.pi / 2, self.angular_resolution)
+
+        if len(set_configs) != self.num_configs:
+            ValueError("Cardinality of configurations does not meet S!")
 
         return set_configs
 
     def __repr__(self):
         return f'RIS-{self.n}'
-
 
 
 class RxNoise:
