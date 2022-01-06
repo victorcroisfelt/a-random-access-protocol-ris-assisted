@@ -9,7 +9,8 @@ import time
 ########################################
 # General parameters
 ########################################
-np.random.seed(42)
+seed = 42
+np.random.seed(seed)
 
 # Square length
 ell = 100
@@ -33,14 +34,16 @@ sigma2 = 10 ** (-94.0 / 10)  # mW
 ########################################
 
 # Initialize environment
-box = Box(ell, ell0)
+# TODO: the generation of users uses an internal random generator as suggested by Numpy new "good practice".
+#  To keep the coexistence for the seed you need  to add a specific RandomState as key argument (as below)
+box = Box(ell, ell0, rng=np.random.RandomState(seed))
 
 # Place BS and RIS (fixed entities)
 box.place_bs(pos_polar=np.array([[30, np.deg2rad(90 + 45)]]))
 box.place_ris(num_configs=S, v_els=Na, h_els=Nb)
 
 # Number of active UEs
-K = 10
+K = 10      # TODO: I would put this in the general parameters above
 
 # Place UEs
 box.place_ue(K)
@@ -51,6 +54,7 @@ channel_gains_dl, channel_gains_ul, phase_shifts_bs, phase_shifts_ue = box.get_c
 # Get DL reflection coefficients
 reflection_coefficients_dl = box.get_reflection_coefficients_dl
 box.plot_reflection_coefficients(reflection_coefficients_dl)
+
 
 # Pilot selection
 pilot_selections = np.random.randint(0, taup, size=K).astype(int)
@@ -76,10 +80,7 @@ best_magnitude_config_ue = np.argmax(magnitude_dl_beacon_ue, axis=0)
 # Evaluates if this is making sense
 for k in range(K):
     print("(best config, UE angle) = (" + str(np.round(np.rad2deg(box.ris.set_configs[best_magnitude_config_ue[k]]), 2))
-          + "," +
-          str(np.round(np.rad2deg(np.arctan(box.ue.pos[k, 1] / box.ue.pos[k, 0])), 2))
-          + ")"
-          )
+          + "," + str(np.round(np.rad2deg(np.arctan(box.ue.pos[k, 1] / box.ue.pos[k, 0])), 2)) + ")")
 
 box.plot_scenario()
 
@@ -113,8 +114,8 @@ for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
     num_active_ue_range = np.random.binomial(num_inactive_ue, prob_access, size=num_setups).astype(int)
 
     # Go through all setups
-    for ss, Ka in enumerate(
-            num_active_ue_range):  # TODO: this is not the most efficient to do this, but just to implement the basics and get a sense
+    for ss, Ka in enumerate(num_active_ue_range):
+        # TODO: this is not the most efficient to do this, but just to implement the basics and get a sense
 
         if not Ka:
             continue
@@ -152,6 +153,7 @@ for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
 
         magnitude_based_ue = np.empty(len(temp), dtype=object)
         magnitude_based_ue = temp
+        # TODO: why the magnitude_based_ue is defined but overwritten in one line? Might be better to simply use "magnitude_based_ue = temp.copy()" ?
 
         del temp
 
@@ -182,14 +184,8 @@ ax.plot(num_inactive_ue_range, num_collisions_ris_assisted.mean(axis=-1), label=
 ax.set_xlabel('number of inactive UEs')
 ax.set_ylabel('average number of collisions')
 
-# # limits
-# ax.set_ylim(ymin=-self.ell0 / 2)
-
 # Legend
 ax.legend()
-# handles, labels = plt.gca().get_legend_handles_labels()
-# by_label = OrderedDict(zip(labels, handles))
-# ax.legend(by_label.values(), by_label.keys())
 
 # Finally
 plt.grid(color='#E9E9E9', linestyle='--', linewidth=0.5)
