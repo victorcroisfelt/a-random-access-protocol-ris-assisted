@@ -162,7 +162,7 @@ class RIS(Node):
         self.els_range = np.arange(self.num_els)
 
         # Each antenna element is a square of size wavelength/4
-        self.size_el = wavelength / 4
+        self.size_el = wavelength/4
 
         # Compute RIS sizes
         self.size_h = Nb * self.size_el  # horizontal size [m]

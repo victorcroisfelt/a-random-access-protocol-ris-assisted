@@ -84,7 +84,8 @@ omega = 2*np.pi/wavelengh   # wavenumber
 theta_i = np.radians(45)
 
 # Desired direction of reflection
-configs = np.radians(np.array([30, 45, 60]))
+#configs = np.radians(np.array([30, 45, 60]))
+configs = np.array([0.19634954, 0.58904862, 0.9817477])
 
 # Define x-axis of the surface: [-5\lambda,5\lambda] corresponds to the case
 # that the surface is 10\lambda long along the x-axis

@@ -1,11 +1,15 @@
 from environment.box import Box
 import numpy as np
 
+import matplotlib.pyplot as plt
+from matplotlib import rc
+
 import time
 
 ########################################
 # General parameters
 ########################################
+np.random.seed(42)
 
 # Square length
 ell = 100
@@ -46,7 +50,7 @@ channel_gains_dl, channel_gains_ul, phase_shifts_bs, phase_shifts_ue = box.get_c
 
 # Get DL reflection coefficients
 reflection_coefficients_dl = box.get_reflection_coefficients_dl
-#box.plot_reflection_coefficients(reflection_coefficients_dl)
+box.plot_reflection_coefficients(reflection_coefficients_dl)
 
 # Pilot selection
 pilot_selections = np.random.randint(0, taup, size=K).astype(int)
@@ -57,10 +61,11 @@ noise_ue = ((sigma2 / 2) ** (1 / 2)) * (np.random.randn(K) + 1j * np.random.rand
 # Compute total DL phase shifts of shape (S,K,N)
 phase_shifts_dl = reflection_coefficients_dl[:, np.newaxis, :] - phase_shifts_bs[np.newaxis, np.newaxis, :] - \
                   phase_shifts_ue[np.newaxis, :, :]  # TODO: Check if signs are correct
+phase_shifts_dl = 2 * np.pi * np.mod(phase_shifts_dl, 1)  # normalize (the closer to zero/2pi, the better)
 
 # Compute received DL beacon of shape (S,K)
 rx_dl_beacon_ue = np.sqrt(box.bs.max_pow * taup * channel_gains_dl)[np.newaxis, :] * \
-                  np.exp(1j * phase_shifts_dl.sum(axis=-1)) + noise_ue[np.newaxis, :]
+                  np.exp(1j * phase_shifts_dl).sum(axis=-1)  # + noise_ue[np.newaxis, :]
 
 # Compute magnitude of received DL beacon in each configuration for each UE
 magnitude_dl_beacon_ue = np.abs(rx_dl_beacon_ue)
@@ -69,14 +74,12 @@ magnitude_dl_beacon_ue = np.abs(rx_dl_beacon_ue)
 best_magnitude_config_ue = np.argmax(magnitude_dl_beacon_ue, axis=0)
 
 # Evaluates if this is making sense
-
-print("UE angles = ", np.round(np.rad2deg(np.arctan(box.ue.pos[:, 1] / box.ue.pos[:, 0])), 2))
-print("Best configs = ", best_magnitude_config_ue)
-
-for cc, config in enumerate(box.ris.set_configs):
-    print("RIS config " + str(cc) + " is centered at = ", np.round(np.rad2deg(box.ris.set_configs[cc]), 2))
-
-breakpoint()
+for k in range(K):
+    print("(best config, UE angle) = (" + str(np.round(np.rad2deg(box.ris.set_configs[best_magnitude_config_ue[k]]), 2))
+          + "," +
+          str(np.round(np.rad2deg(np.arctan(box.ue.pos[k, 1] / box.ue.pos[k, 0])), 2))
+          + ")"
+          )
 
 box.plot_scenario()
 
@@ -95,6 +98,7 @@ num_setups = 100
 
 # Prepare to count number of collisions
 num_collisions = np.zeros((num_inactive_ue_range.size, num_setups))
+num_collisions_ris_assisted = np.zeros((num_inactive_ue_range.size, num_setups))
 
 #####
 
@@ -129,12 +133,13 @@ for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
 
         # Compute total DL phase shifts of shape (S,Ka,N)
         phase_shifts_dl = reflection_coefficients_dl[:, np.newaxis, :] - phase_shifts_bs[np.newaxis, np.newaxis, :] - \
-                          phase_shifts_ue[np.newaxis, :, :]  # TODO: Check if signs are correct
-        phase_shifts_dl = np.mod(phase_shifts_dl, 2 * np.pi)
+                          phase_shifts_ue[np.newaxis, :, :]
+
+        phase_shifts_dl = 2 * np.pi * np.mod(phase_shifts_dl, 1)
 
         # Compute received DL beacon of shape (S,K)
         rx_dl_beacon_ue = np.sqrt(box.bs.max_pow * taup * channel_gains_dl)[np.newaxis, :] * \
-                          np.exp(1j * phase_shifts_dl.sum(axis=-1)) + noise_ue[np.newaxis, :]
+                          (np.exp(1j * phase_shifts_dl)).sum(axis=-1) + noise_ue[np.newaxis, :]
 
         # Compute magnitude of received DL beacon in each configuration for each UE
         magnitude_dl_beacon_ue = np.abs(rx_dl_beacon_ue)
@@ -142,7 +147,50 @@ for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
         # Find the best configuration for each UE in terms of best magnitude
         best_magnitude_config_ue = np.argmax(magnitude_dl_beacon_ue, axis=0)
 
-        # Count number of collisions
+        # Combine pilot selection and best configs
+        temp = [(x, y) for (x, y) in zip(pilot_selections, best_magnitude_config_ue)]
 
+        magnitude_based_ue = np.empty(len(temp), dtype=object)
+        magnitude_based_ue = temp
 
-        breakpoint()
+        del temp
+
+        _, collision_counting_ris_assisted = np.unique(magnitude_based_ue, return_counts=True, axis=0)
+
+        # Count number of collisions: same pilot AND best configuration. The -1 is to disregard the non-collision case
+        num_collisions_ris_assisted[ii, ss] = (collision_counting_ris_assisted - 1).sum()
+
+        # Count number of collisions w/o RIS assistance
+        _, collision_counting = np.unique(pilot_selections, return_counts=True)
+        num_collisions[ii, ss] = (collision_counting - 1).sum()
+
+########################################
+# Plot
+########################################
+
+# LaTeX type definitions
+rc('font', **{'family': 'sans serif', 'serif': ['Computer Modern']})
+rc('text', usetex=True)
+
+# Open axes
+fig, ax = plt.subplots()
+
+ax.plot(num_inactive_ue_range, num_collisions.mean(axis=-1), label='Classical')
+ax.plot(num_inactive_ue_range, num_collisions_ris_assisted.mean(axis=-1), label='RIS-assisted: $S =' + str(S) + '$')
+
+# Set axis
+ax.set_xlabel('number of inactive UEs')
+ax.set_ylabel('average number of collisions')
+
+# # limits
+# ax.set_ylim(ymin=-self.ell0 / 2)
+
+# Legend
+ax.legend()
+# handles, labels = plt.gca().get_legend_handles_labels()
+# by_label = OrderedDict(zip(labels, handles))
+# ax.legend(by_label.values(), by_label.keys())
+
+# Finally
+plt.grid(color='#E9E9E9', linestyle='--', linewidth=0.5)
+plt.show(block=False)

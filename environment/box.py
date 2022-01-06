@@ -10,6 +10,42 @@ from matplotlib import rc
 from scipy.constants import speed_of_light
 
 
+def quant(x, bits):
+    """
+    Quantize a signal x considering the given number of bits.
+
+    Parameters
+    ----------
+
+    x : array of floats
+        input signal
+
+    bits : integer
+        number of bits that defines the step size (resolution) of the
+        quantization process.
+
+    Returns
+    -------
+
+    yk : array of floats
+        quantized version of the input signal
+    """
+
+    # Obtain step size
+    Delta = (1 / 2) ** (bits - 1)
+
+    # Re-scale the signal
+    x_zeros = x * (1 - 1e-12)
+    x_scaled = x_zeros - Delta / 2
+
+    # Quantization stage
+    k = np.round(x / Delta) * Delta
+
+    # Reconstruction stage
+    yk = k + Delta / 2
+
+    return yk
+
 class Box:
     """Class Box creates an environment square box with specific parameters and nodes."""
     def __init__(self,
@@ -199,13 +235,13 @@ class Box:
         Omega_ue = self.bs.gain * self.ue.gain * self.ris.area**2 / (4 * np.pi * dist_bs * self.ris.num_els)**2
 
         # Common factor
-        common = Omega_ue / (dist_ue**2)
+        common_factor = Omega_ue / (dist_ue**2)
 
         # DL channel gains
-        channel_gains_dl = common * np.cos(self.bs.incidence_angle)**2
+        channel_gains_dl = common_factor * np.cos(self.bs.incidence_angle)**2
 
         # UL channel gains
-        channel_gains_ul = common * np.cos(self.ue.incidence_angle)**2
+        channel_gains_ul = common_factor * np.cos(self.ue.incidence_angle)**2
 
         # Compute distance BS-RIS-elements of shape (N,)
         dist_bs_el = np.linalg.norm(self.bs.pos - self.ris.pos_els, axis=-1)
@@ -214,10 +250,10 @@ class Box:
         dist_ue_el = np.linalg.norm(self.ue.pos[:, np.newaxis, :] - self.ris.pos_els, axis=-1)
 
         # BS phase shifts
-        phase_shifts_bs = 2 * np.pi * np.mod(dist_bs_el / self.wavenumber, 1)
+        phase_shifts_bs = 2 * np.pi * np.mod(dist_bs_el / self.wavelength, 1)
 
         # UE phase shifts
-        phase_shifts_ue = 2 * np.pi * np.mod(dist_ue_el / self.wavenumber, 1)
+        phase_shifts_ue = 2 * np.pi * np.mod(dist_ue_el / self.wavelength, 1)
 
         return channel_gains_dl, channel_gains_ul, phase_shifts_bs, phase_shifts_ue
 
@@ -232,20 +268,53 @@ class Box:
         None.
 
         """
+        # # Range over RIS horizontal dimension
+        # v_range = np.arange(-self.ris.size_h / 2, +self.ris.size_h / 2, step=1e-3)
+        #
+        # # Prepare to save local surface phase
+        # local_surface_phase = np.zeros((self.ris.num_configs, v_range.size))
+        #
+        # # Go through all configurations
+        # for config, theta_s in enumerate(self.ris.set_configs):
+        #     local_surface_phase[config, :] = 2 * np.pi * np.mod(self.wavenumber * (np.sin(self.bs.incidence_angle) - np.sin(theta_s)) * v_range, 1)
+        #
 
         # Prepare to save the reflection coefficients for each configuration
         reflection_coefficients_dl = np.zeros((self.ris.num_configs, self.ris.num_els))
 
         # Go through all configurations
         for config, theta_s in enumerate(self.ris.set_configs):
-            reflection_coefficients_dl[config, :] = np.mod(self.wavenumber * (np.sin(self.bs.incidence_angle) - np.sin(theta_s)) * self.ris.pos_els[:, 0], 2 * np.pi)
+            reflection_coefficients_dl[config, :] = 2 * np.pi * np.mod(self.wavenumber * (np.sin(self.bs.incidence_angle) - np.sin(theta_s)) * self.ris.pos_els[:, 0], 1)
+
+        # # LaTeX type definitions
+        # rc('font', **{'family': 'sans serif', 'serif': ['Computer Modern']})
+        # rc('text', usetex=True)
+        #
+        # lines = ['-', '--', ':', ':']
+        # markers = ['.', 'x', 's', 'v']
+        #
+        # fig, ax = plt.subplots(figsize=(3.15, 3))
+        #
+        # # Go through all configurations
+        # for config, theta_s in enumerate(self.ris.set_configs):
+        #     ax.plot(v_range / self.wavelength, np.rad2deg(local_surface_phase[config, :]), linewidth=1.5, linestyle=lines[config])
+        #     ax.plot(self.ris.pos_els[:, 0] / self.wavelength, np.rad2deg(reflection_coefficients_dl[config, :]), markers[config], linewidth=0.0)
+        #
+        # ax.set_xlabel(r'$x/\lambda$')
+        # ax.set_ylabel(r'local surface phase')
+        #
+        # ax.legend(loc='lower right')
+        # ax.set_yticks([0, 45, 90, 135, 180, 225, 270, 315, 360])
+        #
+        # plt.show()
+        #
+        # breakpoint()
 
         return reflection_coefficients_dl
 
     # Visualization methods
     def list_nodes(self, label=None):
-        """This method enlists the communication nodes.
-        """
+        """This method enlists the communication nodes."""
         if label is None:
             ls = '\n'.join(f'{i:2} {n}' for i, n in enumerate(self.node))
         elif label in common.node_labels:
@@ -277,7 +346,11 @@ class Box:
         # Reshape the reflection coefficient tensor from (S,N) -> (S,Na,Nb)
         reflection_coefficients_matrix = reflection_coefficients_flipped.reshape(self.ris.num_configs,
                                                                                  self.ris.num_els_v, self.ris.num_els_h)
+        # LaTeX type definitions
+        rc('font', **{'family': 'sans serif', 'serif': ['Computer Modern']})
+        rc('text', usetex=True)
 
+        # Open axes
         fig, ax = plt.subplots(nrows=decompose, ncols=decompose)
 
         # Go through all configurations
@@ -297,8 +370,12 @@ class Box:
                     # Get value in degrees
                     value_deg = np.round(np.rad2deg(reflection_coefficients_matrix[config][i, j]))
 
-                    # Print value
-                    ax[id_r][id_c].text(j, i, str(value_deg), va='center', ha='center')
+                    # Print value, note that j indexes the x-dimension (horizontal plot dimension)
+                    ax[id_r][id_c].text(j, i, str(value_deg), va='center', ha='center', color='black',
+                                        fontsize='x-small',fontweight='bold')
+
+                    ax[id_r][id_c].set_xlabel('$x$ [m]')
+                    ax[id_r][id_c].set_ylabel('$z$ [m]')
 
         plt.show()
 
