@@ -10,7 +10,7 @@ from matplotlib import rc
 from scipy.constants import speed_of_light
 
 
-def quant(x, bits):
+def quant(x: np.ndarray, bits: int):
     """
     Quantize a signal x considering the given number of bits.
 
@@ -46,14 +46,14 @@ def quant(x, bits):
 
     return yk
 
+
 class Box:
     """Class Box creates an environment square box with specific parameters and nodes."""
     def __init__(self,
                  ell: float, ell0: float,
                  carrier_frequency: float = 3e9, bandwidth: float = 180e3,
                  pl_exp: float = 2, sh_std: float = -np.inf,
-                 rng: np.random.RandomState = None
-                 ):
+                 rng: np.random.RandomState = None):
         """Constructor of the cell.
 
         :param ell: float, side length of the users (nodes can be placed between outer and inner).
@@ -172,7 +172,7 @@ class Box:
                 pos = np.hstack((pos[:, 0], pos[:, 1], np.zeros((n, 1))))
             except IndexError:
                 # Add third dimension for coherency with RIS
-                pos = pos[0] * np.array([[np.cos(pos[1]), np.sin(pos[1]), 0]])
+                pos = pos_polar[0] * np.array([[np.cos(pos_polar[1]), np.sin(pos_polar[1]), 0]])
 
         # Append nodes
         self.ue = UE(n, pos, ant, gain, max_pow, noise_power)
@@ -194,7 +194,7 @@ class Box:
         :param h_els: list of int > 0
             Number of horizontal elements of each RIS.
 
-        :param configs: list of int > 0
+        :param num_configs: list of int > 0
             Number of configurations.
         """
         # Compute the position
@@ -246,7 +246,7 @@ class Box:
         # Compute distance BS-RIS-elements of shape (N,)
         dist_bs_el = np.linalg.norm(self.bs.pos - self.ris.pos_els, axis=-1)
 
-        # Compute distance BS-RIS-elements of shaspe (K,N)
+        # Compute distance BS-RIS-elements of shape (K,N)
         dist_ue_el = np.linalg.norm(self.ue.pos[:, np.newaxis, :] - self.ris.pos_els, axis=-1)
 
         # BS phase shifts
@@ -313,17 +313,6 @@ class Box:
         return reflection_coefficients_dl
 
     # Visualization methods
-    def list_nodes(self, label=None):
-        """This method enlists the communication nodes."""
-        if label is None:
-            ls = '\n'.join(f'{i:2} {n}' for i, n in enumerate(self.node))
-        elif label in common.node_labels:
-            ls = '\n'.join(f'{i:2} {n}' for i, n in enumerate(self.node)
-                           if n.type == label)
-        else:
-            raise ValueError(f'Node type must be in {common.node_labels}')
-        return print(ls)
-
     def plot_reflection_coefficients(self, reflection_coefficients):
         """This method plots how each element of the RIS is configured in each different configuration.
         """
@@ -416,67 +405,3 @@ class Box:
         # Finally
         plt.grid(color='#E9E9E9', linestyle='--', linewidth=0.5)
         plt.show(block=False)
-
-    # def show_chan(self, subs: (int, list) = None):
-    #     """Shows the chan_gain in a pretty and readable way.
-    #     # TODO: re-update it
-    #
-    #     Parameters
-    #     __________
-    #     FR : (int, list)
-    #         the subcarriers to be visualized; it can be a single or a list of subcarriers
-    #     """
-    #     # Control if channel gain tensor is built
-    #     if self.chan_gain is None:
-    #         warnings.warn('Channel gain tensor not instantiated.')
-    #         return
-    #     # Control on input
-    #     if subs is None:
-    #         subs = list(range(self.FR))
-    #     elif isinstance(subs, int):
-    #         subs = [subs]
-    #     with np.errstate(divide='ignore'):
-    #         user_grid = 20 * np.log10(np.abs(np.mean(self.chan_gain, axis=(3, 4))))
-    #     out = str()
-    #     nodes = list(range(self.chan_gain.shape[1]))
-    #     for ind, f in enumerate(subs):
-    #         head = [f'f={f}'] + nodes
-    #         out += tabulate(user_grid[f], headers=head, floatfmt=".2f",
-    #                         showindex="always", numalign="right",
-    #                         tablefmt="github")
-    #         out += '\n\n'
-    #     print(out)
-
-    # TODO: simplify the representation
-    # def count_elem(self):
-    #     count = [[0] * 3 for _ in range(len(dic.node_types))]
-    #     ind = self.ind()[0]
-    #     for j in range(len(dic.node_types)):
-    #         count[j][0] = len(ind[j])
-    #         if count[j][0]:
-    #             ls = (list(dic.bs_dir) if j in range(len(dic.bs_dir))
-    #                   else list(dic.user_dir))
-    #             count[j][1] = [self.node[i].dir for i in ind[j]].count(ls[0])
-    #             count[j][2] = [self.node[i].dir for i in ind[j]].count(ls[1])
-    #     return count
-    # def __repr__(self):
-    #     count = self.count_elem()
-    #     line = []
-    #     for i in range(len(dic.node_types)):
-    #         ls = (list(dic.bs_dir) if i in range(len(dic.bs_dir))
-    #               else list(dic.user_dir))
-    #         line.append(f'{list(dic.node_types)[i]:3} = {count[i][0]:02}, '
-    #                     f'{ls[0]:2} = {count[i][1]:02}, '
-    #                     f'{ls[1]:2} = {count[i][2]:02};')
-    #     counter = '\n\t\t'.join(str(n) for n in line)
-    #     return (f'cell #{self.id}: '
-    #             f'\n\tdim:\t{self.ell0}-{self.ell} [m]'
-    #             f'\n\tcoord:\t{self.pos[0]:+04.0f},{self.pos[1]:+04.0f} [m]'
-    #             f'\n\tcoef:\tPL_exp = {self.pl_exp:1},'
-    #             f'\tSH = {self.sh_std:02} [dB]'
-    #             f'\n\tnodes:\t{counter}\n')
-
-    # Properties
-    @property
-    def noise_vector(self):
-        return np.array([n.noise.linear for n in self.node])
