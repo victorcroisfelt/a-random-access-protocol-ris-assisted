@@ -159,7 +159,7 @@ class RIS(Node):
         # In this way every ris instantiated is equal to the others
 
         # Store index of elements considering total number
-        self.enumeration_els = np.arange(self.num_els)
+        self.els_range = np.arange(self.num_els)
 
         # Each antenna element is a square of size wavelength/4
         self.size_el = wavelength / 4
@@ -213,13 +213,13 @@ class RIS(Node):
         characterize the geometry features of each element, while the latter is used for storage purposes.
         """
         # Get vertical ids
-        id_v = self.enumeration_els // self.num_els_v
+        id_v = self.els_range // self.num_els_v
 
         # Get horizontal ids
-        id_h = np.mod(self.enumeration_els, self.num_els_h)
+        id_h = np.mod(self.els_range, self.num_els_h)
 
         # Get array of tuples with complete id
-        id_els = [(id_v[el], id_h[el]) for el in self.enumeration_els]
+        id_els = [(id_v[el], id_h[el]) for el in self.els_range]
 
         return id_els
 
@@ -239,7 +239,7 @@ class RIS(Node):
         pos_els = np.zeros((self.num_els, 3))
 
         # Go through all elements
-        for el in self.enumeration_els:
+        for el in self.els_range:
             pos_els[el, 0] = (self.id_els[el][1] * self.size_el) - offset_x
             pos_els[el, 2] = (self.id_els[el][0] * self.size_el) - offset_z
 
@@ -257,7 +257,7 @@ class RIS(Node):
         fig, ax = plt.subplots()
 
         # Go through all elements
-        for el in self.enumeration_els:
+        for el in self.els_range:
             ax.plot(self.pos_els[el, 0], self.pos_els[el, 2], 'x', color='black')
             ax.text(self.pos_els[el, 0] - 0.003, self.pos_els[el, 2] - 0.0075, str(self.id_els[el]))
 

@@ -81,7 +81,7 @@ wavelengh = c/fc    # wavelength
 omega = 2*np.pi/wavelengh   # wavenumber
 
 # Angle of incidence
-theta_i = np.radians(30)
+theta_i = np.radians(45)
 
 # Desired direction of reflection
 configs = np.radians(np.array([30, 45, 60]))

@@ -54,7 +54,7 @@ class Box:
         self.chan_gain = None
 
         # Nodes
-        self.bs_height = 10     # [m]
+        self.bs_height = 0     # [m]
         self.bs = None
         self.ue = None
         self.ris = None
@@ -232,12 +232,6 @@ class Box:
         None.
 
         """
-        # # Go along x dimension
-        # x_range = np.arange(-self.ris.size_h / 2, + self.ris.size_h / 2, self.ris.size_el)  # [m]
-        #
-        # # Check if the size of x_range meets the number of horizontal els
-        # if len(x_range) != self.ris.num_els_h:
-        #     raise Exception("Range over x-axis does not meet number of horizontal Nb elements.")
 
         # Prepare to save the reflection coefficients for each configuration
         reflection_coefficients_dl = np.zeros((self.ris.num_configs, self.ris.num_els))
@@ -250,6 +244,8 @@ class Box:
 
     # Visualization methods
     def list_nodes(self, label=None):
+        """This method enlists the communication nodes.
+        """
         if label is None:
             ls = '\n'.join(f'{i:2} {n}' for i, n in enumerate(self.node))
         elif label in common.node_labels:
@@ -258,6 +254,53 @@ class Box:
         else:
             raise ValueError(f'Node type must be in {common.node_labels}')
         return print(ls)
+
+    def plot_reflection_coefficients(self, reflection_coefficients):
+        """This method plots how each element of the RIS is configured in each different configuration.
+        """
+
+        # Decompose number of configurations
+        decompose = int(np.sqrt(self.ris.num_configs))
+
+        # Define min and max values of the reflection coefficient
+        min_val, max_val = 0, 2 * np.pi
+
+        # Flipped version of input vector: by convention, the first element of reflection coefficients stores the bottom
+        # leftmost element, that is,
+        #
+        # x   x   x
+        # x   x   x
+        # o   x   x
+        #
+        reflection_coefficients_flipped = np.flip(reflection_coefficients, axis=-1)
+
+        # Reshape the reflection coefficient tensor from (S,N) -> (S,Na,Nb)
+        reflection_coefficients_matrix = reflection_coefficients_flipped.reshape(self.ris.num_configs,
+                                                                                 self.ris.num_els_v, self.ris.num_els_h)
+
+        fig, ax = plt.subplots(nrows=decompose, ncols=decompose)
+
+        # Go through all configurations
+        for config, theta_s in enumerate(self.ris.set_configs):
+
+            id_r = int(np.mod(config, decompose))
+            id_c = config//decompose
+
+            ax[id_r][id_c].matshow(reflection_coefficients_matrix[config][:, :], cmap=plt.cm.Blues)
+
+            ax[id_r][id_c].set_title(("desired direction is: " + str(np.round(np.rad2deg(theta_s), 2))))
+
+            # Go through RIS in the reverse direction
+            for i in range(self.ris.num_els_v):
+                for j in range(self.ris.num_els_h):
+
+                    # Get value in degrees
+                    value_deg = np.round(np.rad2deg(reflection_coefficients_matrix[config][i, j]))
+
+                    # Print value
+                    ax[id_r][id_c].text(j, i, str(value_deg), va='center', ha='center')
+
+        plt.show()
 
     def plot_scenario(self):
         """This method will plot the scenario of communication
