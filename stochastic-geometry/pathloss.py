@@ -1,5 +1,5 @@
 # file: pathloss.py
-# This evaluate the correctness of the analytical solution for the CDF and PDF computation of the DL and UL pathloss
+# This evaluates the correctness of the analytical solution for the CDF and PDF computation of the DL and UL pathloss
 
 import numpy as np
 import scipy as sp
@@ -112,6 +112,14 @@ if __name__ == "__main__":
                           lambda x: 1 + ell0 / ell - om / 8 / x / ell ** 2 * (np.pi + 2 * (x / om) ** (1/4) * (np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0)) * (1 - 2 * np.sqrt(x / om) * ell0) + np.sqrt((ell0 + ell) * (1 - np.sqrt(x / om) * (ell0 + ell))) * (2 * (ell0 + ell) * np.sqrt(x / om) - 1)) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0))) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt((ell0+ell) * (1 - np.sqrt(x / om) * (ell0+ell))))),
                           lambda x: 1 - (ell0 / ell) ** 2 - om / 8 / x / ell ** 2 * (np.pi - 2 * np.sqrt(x / om) * ell0 * (2 + np.sqrt(1 - 4 * x * ell0 ** 2 / om)) + 2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0)) * (1 - 2 * np.sqrt(x / om) * ell0) - np.arcsin(2 * np.sqrt(x / om) * ell0) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0)))),
                           1])
+    # UL-PDF
+    pdf_ul = np.piecewise(beta_ul, [beta_ul <= limits[0], (beta_ul > limits[0]) * (beta_ul <= limits[1]), (beta_ul > limits[1]) * (beta_ul <= limits[2]), (beta_ul > limits[2]) * (beta_ul <= limits[3]), beta_ul > limits[3]],
+                          [0,
+                          lambda x: 1 / 4 / ell ** 2 / x * (np.sqrt(om / x) * (np.sqrt(ell0) * np.sqrt(np.sqrt(om / x) - ell0) - (ell0+ell)) + om / x / 2 * (np.arcsin(2 * np.sqrt(x / om) * (ell0 + ell)) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0))))),
+                          0, # lambda x: 1 + ell0 / ell - om / 8 / x / ell ** 2 * (np.pi + 2 * (x / om) ** (1/4) * (np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0)) * (1 - 2 * np.sqrt(x / om) * ell0) + np.sqrt((ell0 + ell) * (1 - np.sqrt(x / om) * (ell0 + ell))) * (2 * (ell0 + ell) * np.sqrt(x / om) - 1)) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0))) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt((ell0+ell) * (1 - np.sqrt(x / om) * (ell0+ell))))),
+                          0, # lambda x: 1 - (ell0 / ell) ** 2 - om / 8 / x / ell ** 2 * (np.pi - 2 * np.sqrt(x / om) * ell0 * (2 + np.sqrt(1 - 4 * x * ell0 ** 2 / om)) + 2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0)) * (1 - 2 * np.sqrt(x / om) * ell0) - np.arcsin(2 * np.sqrt(x / om) * ell0) - np.arcsin(2 * (x / om) ** (1/4) * np.sqrt(ell0 * (1 - np.sqrt(x / om) * ell0)))),
+                          0])
+    
 
 
 
@@ -150,6 +158,7 @@ if __name__ == "__main__":
     # UL-PDF
     _, ax = plt.subplots()
     ax.hist(pl_ul, bins=100, density=True, label='empirical')
+    ax.plot(beta_ul, pdf_ul, label='analytical', linestyle='--')
     plt.ylabel(r'$f_{B^{\mathrm{UL}}}(\beta)$')
     plt.xlabel(r'$\beta$')
     ax.grid()
