@@ -22,7 +22,7 @@ Table of Contents
 
 
 ### RIS
-- [x] **Intelligent Reflecting Surfaces: Physics, Propagation, and Pathloss Modeling (2020)** [[pdf]](https://ieeexplore.ieee.org/document/8936989) - [[code]](https://github.com/emilbjornson/IRS-modeling)
+- [x] **Intelligent Reflecting Surfaces: Physics, Propagation, and Pathloss Modeling (2020)** [[pdf]](https://ieeexplore.ieee.org/document/8936989) [[code]](https://github.com/emilbjornson/IRS-modeling)
 > Proposes a simple pathloss model for a RIS-assited communication link based on the properties of the scattered wave after reflection on a metal plate. RIS' reflection coefficients are computed based on the Generalized Snell's law.
 
 -[x] **Power Scaling Laws and Near-Field Behaviors of Massive MIMO and Intelligent Reflecting Surfaces (2020)** [[pdf]](https://ieeexplore.ieee.org/document/9184098) [[code]](https://github.com/emilbjornson/near-field-behavior)
