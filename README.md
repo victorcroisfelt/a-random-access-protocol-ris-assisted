@@ -15,10 +15,10 @@ Table of Contents
 
 ### Random Access
 
-[] ** ** [pdf]()
+- [ ] ** ** [pdf]()
 >
 
 
 ### RIS
-[] ** ** [pdf]()
+- [ ] ** ** [pdf]()
 >
