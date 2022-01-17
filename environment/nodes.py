@@ -2,194 +2,219 @@
 # filename "nodes.py"
 
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.constants import speed_of_light
+
+import matplotlib.pyplot as plt
 
 
 class Node:
-    """Node definition. This class is called by BS, UE, and RIS classes to defining common parameters."""
+    """Creates a communication entity.
 
-    def __init__(self,
-                 n: int,
-                 pos: np.ndarray,
-                 ant: int or np.ndarray = None,
-                 gain: float or np.ndarray = None,
-                 max_pow: float or np.ndarray = None,
-                 noise_power: float or np.ndarray = None):
-        """Constructor of the Node class.
+    Arguments
+    ---------
+        n : int
+            Number of nodes.
 
-        Parameters
-        ----------
-        :param n: number of nodes.
-        :param pos: np.ndarray n x 3 representing the x,y,z cartesian coordinates of each node.
-        :param ant: np.ndarray n x 1 of int > 0, number of antennas of the node.
-        :param gain: float representing the antenna gain of the node.
-        :param max_pow: float representing the max power available on transmission.
-        """
+        pos : ndarray of shape (n, 3) or (3,) if n = 1
+          Position of the node in rectangular coordinates.
+
+        gain : float
+            Antenna gain of the node.
+
+        max_pow : float
+         Max power available on transmission in linear scale.
+    """
+
+    def __init__(
+            self,
+            n: int,
+            pos: np.ndarray,
+            gain: float or np.ndarray = None,
+            max_pow: float or np.ndarray = None,
+    ):
+
         # Control on INPUT
-        if pos.shape != (n, 3):
-            raise ValueError(f'Illegal positioning: for Node, pos.shape must be ({n},3), instead it is {pos.shape}')
-        # Input reformat
-        if not isinstance(ant, np.ndarray):
-            ant = np.array([ant] * n)
-        if not isinstance(gain,  np.ndarray):
-            gain = np.array([gain] * n)
-        if not isinstance(max_pow,  np.ndarray):
-            max_pow = np.array([max_pow] * n)
-        if not isinstance(noise_power,  np.ndarray):
-            noise_power = np.array([noise_power] * n)       
+        if pos.shape != (n, 3) and pos.shape != (3, ):
+            raise ValueError(f'Illegal positioning: for Node, pos.shape must be ({n}, 3), instead it is {pos.shape}')
+
         # Set attributes
         self.n = n
         self.pos = pos
-        self.ant = ant
         self.gain = gain
-        self.max_pow = max_pow       
-        # Noise definition
-        self.noise = RxNoise(dBm=noise_power)    
+        self.max_pow = max_pow
 
 
 class BS(Node):
-    """BS definition."""
+    """Base station.
 
-    def __init__(self, n: int, pos: np.ndarray, ant: int, gain: float, max_pow: float, noise_power: float):
-        """BS class for simulation purpose.
+    Arguments
+    ---------
+        pos : ndarray of shape (3,)
+            Position of the BS in rectangular coordinates.
 
-        :param n: int, number of BS
-        :param pos: ndarray n x 3, the x,y cartesian coordinates of the node.
-        :param ant: int > 0, number of antennas of the node. Default value is 1.
-        :param gain : float [dBi] representing antenna gain of the node. Default is 5.00 dB
-        :param max_pow: float [dBm], max power available on transmission. Default is 43 dBm.
-        :param noise_power: float [dBm], noise power at RF chain
-        """
-        # Default values
-        if ant is None:
-            ant = 1
+        gain : float
+            BS antenna gain. Default is 5.00 dB.
+
+        max_pow : float
+            BS max power. Default is 30 dBm.
+    """
+
+    def __init__(
+            self,
+            n: int = None,
+            pos: np.ndarray = None,
+            gain: float = None,
+            max_pow: float = None,
+    ):
+        if n is None:
+            n = 1
         if gain is None:
             gain = 10**(5/10)
         if max_pow is None:
-            max_pow = 100 # [mW] TODO: agree with name of power variables.. put _dB or _dBm after for variables in different scales
-        if noise_power is None:
-            noise_power = -92.5  # [dBm] TODO: update to a reasonable value
+            max_pow = 100  # [mW]
 
         # Init parent class
-        super(BS, self).__init__(n, pos, ant, gain, max_pow, noise_power)
-
-        # Compute incidence angle (always positive)
-        self.incidence_angle = np.abs(np.arctan(self.pos[0][0] / self.pos[0][1]))
+        super().__init__(n, pos, gain, max_pow)
 
     def __repr__(self):
         return f'BS-{self.n}'
 
 
 class UE(Node):
-    """User definition."""
+    """User.
 
-    def __init__(self, 
-                 n: int, 
-                 pos: np.ndarray,
-                 ant: int or np.ndarray = None, 
-                 gain: float or np.ndarray = None,
-                 max_pow: float or np.ndarray = None, 
-                 noise_power: float or np.ndarray = None):
-        """User class for simulation purpose.
+    Arguments
+    ---------
+        n : int
+            Number of UEs.
 
-        :param pos: ndarray n x 3, the x,y,z cartesian coordinates of the node.
-        :param ant: int > 0, number of antennas of the node. Default value is 1.
-        :param gain: float [dBi], antenna gains of the node. Default value is 5.00 dB.
-        :param max_pow: float [dBm], max power available on transmission in dBm.
-                Default value is 24 dBm.
-        """
-        # Default values
-        if ant is None:
-            ant = 1
+        pos : ndarray of shape (n, 3)
+            Position of the UEs in rectangular coordinates.
+
+        gain : float
+            BS antenna gain. Default is 5.00 dB.
+
+        max_pow : float
+            BS max power. Default is 30 dBm.
+    """
+
+    def __init__(
+            self,
+            n: int,
+            pos: np.ndarray,
+            gain: float = None,
+            max_pow: float = None,
+    ):
+
         if gain is None:
             gain = 10**(5/10)
         if max_pow is None:
-            max_pow = 100
-        if noise_power is None:
-            noise_power = -92.5  # [dBm] TODO: update to a reasonable value
+            max_pow = 100  # [mW]
 
         # Init parent class
-        super(UE, self).__init__(n, pos, ant, gain, max_pow, noise_power)
-
-        # Compute incidence angle (always positive)
-        self.incidence_angle = np.abs(np.arctan(self.pos[:, 0] / self.pos[:, 1]))
+        super().__init__(n, pos, gain, max_pow)
 
     def __repr__(self):
         return f'UE-{self.n}'
 
 
 class RIS(Node):
-    """RIS definition. A class that defines a reflective intelligent surface (RIS)."""
+    """Reflective Intelligent Surface.
 
-    def __init__(self,
-                 n: int,
-                 pos: np.ndarray,
-                 Na: int = None,
-                 Nb: int = None,
-                 S: int = None,
-                 wavelength: float = None):
-        """ Constructor.
+    Arguments
+    ---------
+        pos : ndarray of shape (3,)
+            Position of the RIS in rectangular coordinates.
 
-        :param n: int > 0, number of RISs
-        :param pos: ndarray n x 3, the x,y,z cartesian coordinates of each node.
-        :param Na: int > 0, number of elements along vertical dimension
-        :param Nb: int > 0, number of elements along horizontal dimension
-        :param S: int > 0, number of configurations
-        """
+        num_els_v : int
+            Number of elements in the vertical dimension.
+
+        num_els_h : int
+            Number of elements in the horizontal dimension.
+
+        wavelength : float
+            Wavelength in meters. Default: assume carrier frequency of 3 GHz.
+
+        size_el : float
+            Size of each element. Default: wavelength/4
+
+        num_configs : int
+            Number of configurations.
+    """
+
+    def __init__(
+            self,
+            n: int = None,
+            pos: np.ndarray = None,
+            num_els_v: int = None,
+            num_els_h: int = None,
+            wavelength: float = None,
+            size_el: float = None,
+            num_configs: int = None,
+
+    ):
         # Default values
-        if Na is None:
-            Na = 4
-        if Nb is None:
-            Nb = 4
-        if S is None:
-            S = 4
+        if n is None:
+            n = 1
+        if pos is None:
+            pos = np.array([0, 0, 0])
+        if num_els_v is None:
+            num_els_v = 4
+        if num_els_h is None:
+            num_els_h = 4
         if wavelength is None:
-            wavelength = 0.1
-        # Instance variables
-        self.num_els_v = Na  # vertical number of elements
-        self.num_els_h = Nb  # horizontal number of elements
-        self.num_els = Na * Nb  # total number of elements
-        self.num_configs = S  # number of configurations
+            carrier_frequency = 3e9
+            wavelength = speed_of_light / carrier_frequency
+        if size_el is None:
+            size_el = wavelength/4
+        if num_configs is None:
+            num_configs = 4
+
 
         # Initialize the parent, considering that the antenna gain of the ris is 0.0,
         # max_pow and noise_power are -np.inf,
         # the number of antenna is the number or RIS elements
-        super(RIS, self).__init__(n, pos, self.num_els, 0.0, -np.inf, -np.inf)
+        super().__init__(n, pos, 0.0, -np.inf)
         # In this way every ris instantiated is equal to the others
+
+        # Instance variables
+        self.num_els_v = num_els_v  # vertical number of elements
+        self.num_els_h = num_els_h  # horizontal number of elements
+        self.num_els = num_els_v * num_els_h  # total number of elements
+        self.size_el = wavelength/4
+        self.num_configs = num_configs  # number of configurations
 
         # Store index of elements considering total number
         self.els_range = np.arange(self.num_els)
 
-        # Each antenna element is a square of size wavelength/4
-        self.size_el = wavelength/4
-
         # Compute RIS sizes
-        self.size_h = Nb * self.size_el  # horizontal size [m]
-        self.size_v = Na * self.size_el  # vertical size [m]
-        self.area = self.size_h * self.size_v   # area [m^2]
+        self.size_v = num_els_v * self.size_el  # vertical size [m]
+        self.size_h = num_els_h * self.size_el  # horizontal size [m]
+        self.area = self.size_v * self.size_h   # area [m^2]
 
         # Organizing elements over the RIS
         self.id_els = self.indexing_els()
         self.pos_els = self.positioning_els()
 
         # Configure RIS
-        self.angular_resolution = self.get_angular_resolution()
-        self.set_configs = self.configure()
+        self.angular_resolution = None
+        self.set_angular_resolution()
+
+        self.configs = None
+        self.set_configurations()
 
     def indexing_els(self):
-        """
-        Define an array of tuples where each represents the id of an element.
+        """Define an array of tuples where each entry represents the ID of an element.
 
         Returns
         -------
-        id_els : ndarray of tuples and shape (self.num_els)
+        id_els : ndarray of tuples of shape (self.num_els)
             Each ndarray entry has a tuple (id_v, id_h), which indexes the elements arranged in a planar array. Vertical
             index is given as id_v, while horizontal index is id_h.
 
         Example
         -------
-        For a Na = 3 x Nb = 3 RIS, the elements are indexed as follows:
+        For a num_els_v = 3 x num_els_h = 3 RIS, the elements are indexed as follows:
 
                                                 (2,0) -- (2,1) -- (2,2)
                                                 (1,0) -- (1,1) -- (1,2)
@@ -207,10 +232,10 @@ class RIS(Node):
 
         the enumeration is stored at:
 
-                                            self.els = range(num_els).
+                                            self.els_range = np.arange(num_els).
 
-        Therefore, id_els and self.els are two different index methods for the elements. The former is used to
-        characterize the geometry features of each element, while the latter is used for storage purposes.
+        Therefore, id_els and self.els_range are two different index methods for the elements. The former is used to
+        characterize the geometrical features of each element, while the latter is used for storage purposes.
         """
         # Get vertical ids
         id_v = self.els_range // self.num_els_v
@@ -224,8 +249,7 @@ class RIS(Node):
         return id_els
 
     def positioning_els(self):
-        """
-        Compute position of each element in the planar array.
+        """Compute position of each element in the planar array.
 
         Returns
         -------
@@ -246,8 +270,7 @@ class RIS(Node):
         return pos_els
 
     def plot(self):
-        """
-        Plot RIS along with the index of each element.
+        """Plot RIS along with the index of each element.
 
         Returns
         -------
@@ -272,9 +295,9 @@ class RIS(Node):
 
         plt.show()
 
-    def get_angular_resolution(self):
-        """
-        Get RIS angular resolution. Observation space is ever considered to be pi/2 (half-plane) given our system setup.
+    def set_angular_resolution(self):
+        """Set RIS angular resolution. The observation space is ever considered to be 0 to pi/2 (half-plane) given our
+        system setup.
 
         Returns
         -------
@@ -284,20 +307,17 @@ class RIS(Node):
 
         Example
         -------
-        For S = 4, angular_resolution evaluates to pi/8.
+        For num_configs = 4, angular_resolution evaluates to pi/8.
 
         """
-        angular_resolution = (np.pi / 2 - 0) / self.num_configs
+        self.angular_resolution = (np.pi / 2 - 0) / self.num_configs
 
-        return angular_resolution
-
-    def configure(self):
-        """
-        Define set of S configurations offered by the RIS.
+    def set_configurations(self):
+        """Set configurations offered by the RIS.
 
         Returns
         -------
-        set_configs : ndarray of shape (self.num_configs-1,)
+        set_configs : ndarray of shape (self.num_configs,)
             Discrete set of configurations containing all possible angles (theta_s) in radians in which the RIS can
             steer the incoming signal.
 
@@ -307,42 +327,40 @@ class RIS(Node):
 
                                  set_configs = [1/2, 3/2, 5/2, 7/2] * pi/8
 
-        0 and pi/2 are not included. Note that the observation space is divided into 4 zones.
+        0 and pi/2 are not included. Note that the observation space is divided into 5 zones.
         """
-        set_configs = np.arange(self.angular_resolution / 2, np.pi / 2, self.angular_resolution)
+        configs = np.arange(self.angular_resolution / 2, np.pi / 2, self.angular_resolution)
 
-        if len(set_configs) != self.num_configs:
-            ValueError("Cardinality of configurations does not meet S!")
+        assert len(configs) == self.num_configs, "Cardinality of configurations does not meet the number of configurations!"
 
-        return set_configs
+        self.configs = configs
 
     def __repr__(self):
         return f'RIS-{self.n}'
 
-
-class RxNoise:
-    """Represent the noise value at the physical receiver
-    # TODO: match with ambient noise and noise figure
-    """
-
-    def __init__(self, linear=None, dB=None, dBm: np.ndarray = np.array([-92.5])):
-        if (linear is None) and (dB is None):
-            self.dBm = dBm
-            self.dB = dBm - 30
-            self.linear = 10 ** (self.dB / 10)
-        elif (linear is not None) and (dB is None):
-            self.linear = linear
-            if self.linear != 0:
-                self.dB = 10 * np.log10(self.linear)
-                self.dBm = 10 * np.log10(self.linear * 1e3)
-            else:
-                self.dB = -np.inf
-                self.dBm = -np.inf
-        else:
-            self.dB = dB
-            self.dBm = dB + 30
-            self.linear = 10 ** (self.dB / 10)
-
-    def __repr__(self):
-        return (f'noise({self.linear:.3e}, '
-                f'dB={self.dB:.1f}, dBm={self.dBm:.1f})')
+# class RxNoise:
+#     """Represent the noise value at the physical receiver
+#     # TODO: match with ambient noise and noise figure
+#     """
+#
+#     def __init__(self, linear=None, dB=None, dBm: np.ndarray = np.array([-92.5])):
+#         if (linear is None) and (dB is None):
+#             self.dBm = dBm
+#             self.dB = dBm - 30
+#             self.linear = 10 ** (self.dB / 10)
+#         elif (linear is not None) and (dB is None):
+#             self.linear = linear
+#             if self.linear != 0:
+#                 self.dB = 10 * np.log10(self.linear)
+#                 self.dBm = 10 * np.log10(self.linear * 1e3)
+#             else:
+#                 self.dB = -np.inf
+#                 self.dBm = -np.inf
+#         else:
+#             self.dB = dB
+#             self.dBm = dB + 30
+#             self.linear = 10 ** (self.dB / 10)
+#
+#     def __repr__(self):
+#         return (f'noise({self.linear:.3e}, '
+#                 f'dB={self.dB:.1f}, dBm={self.dBm:.1f})')
