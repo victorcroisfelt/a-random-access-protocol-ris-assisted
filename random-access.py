@@ -68,7 +68,7 @@ rx_dl_beacon_ue = np.exp(1j * phase_shifts_dl).sum(axis=-1)
 #np.sqrt(box.bs.max_pow * taup * channel_gains_dl)[np.newaxis, :] * np.exp(1j * phase_shifts_dl).sum(axis=-1)  # + noise_ue[np.newaxis, :]
 
 # Compute angles of received DL beacon in each configuration for each UE
-angle_dl_beacon_ue = np.angle(rx_dl_beacon_ue)
+angle_dl_beacon_ue = np.abs(np.angle(rx_dl_beacon_ue))
 
 # Find the best configuration for each UE in terms of minimum phase shift
 best_magnitude_config_ue = np.argmin(angle_dl_beacon_ue, axis=0)
@@ -136,7 +136,7 @@ for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
                           np.exp(1j * phase_shifts_dl).sum(axis=-1) + noise_ue[np.newaxis, :]
 
         # Compute angles of received DL beacon in each configuration for each UE
-        angle_dl_beacon_ue = np.angle(rx_dl_beacon_ue)
+        angle_dl_beacon_ue = np.abs(np.angle(rx_dl_beacon_ue))
 
         # Find the best configuration for each UE in terms of minimum phase shift
         best_magnitude_config_ue = np.argmin(angle_dl_beacon_ue, axis=0)
@@ -144,8 +144,8 @@ for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
         # Combine pilot selection and best configs
         temp = [(x, y) for (x, y) in zip(pilot_selections, best_magnitude_config_ue)]
 
-        magnitude_based_ue = np.empty(len(temp), dtype=object)
-        magnitude_based_ue = temp
+        angular_based_ue = np.empty(len(temp), dtype=object)
+        angular_based_ue = temp
         # TODO: why the magnitude_based_ue is defined but overwritten in one line? Might be better to simply use "magnitude_based_ue = temp.copy()" ?
         # TODO: ANN. Note that temp is a list of tuples [(,), (,)], and magnitude_based_ue is an array of tuples nd.array([(,), (,)]);  this was the best way that
         # I found to transform one to the other; if you simply do nd.array(temp), this shall return a 2 dimension array, where each col represent an entry of the tuple.
@@ -153,7 +153,7 @@ for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
 
         del temp
 
-        _, collision_counting_ris_assisted = np.unique(magnitude_based_ue, return_counts=True, axis=0)
+        _, collision_counting_ris_assisted = np.unique(angular_based_ue, return_counts=True, axis=0)
 
         # Count number of collisions: same pilot AND best configuration. The -1 is to disregard the non-collision case
         num_collisions_ris_assisted[ii, ss] = (collision_counting_ris_assisted - 1).sum()
