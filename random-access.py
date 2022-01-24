@@ -39,17 +39,20 @@ sigma2 = 10 ** (-94.0 / 10)  # mW
 box = Box(ell, ell0, rng=np.random.RandomState(seed))
 
 # Place BS and RIS (fixed entities)
-box.place_bs(distance=50, zenith_angle_deg=30)
+box.place_bs(distance=10, zenith_angle_deg=45)
 
 box.place_ris(num_configs=S, num_els_v=Na, num_els_h=Nb)
 
+box.ris.plot()
+
+breakpoint()
 # Number of active UEs
 K = 10
 
 # Place UEs
 box.place_ue(K)
 
-box.plot_scenario()
+#box.plot_scenario()
 
 # Evaluate deterministic channel model
 #   channel_gains_dl : ndarray of shape (num_ues, )
@@ -71,7 +74,7 @@ rx_dl_beacon_ue = np.exp(1j * phase_shifts_dl).sum(axis=-1)
 angle_dl_beacon_ue = np.abs(np.angle(rx_dl_beacon_ue))
 
 # Find the best configuration for each UE in terms of minimum phase shift
-best_magnitude_config_ue = np.argmin(angle_dl_beacon_ue, axis=0)
+best_magnitude_config_ue = np.argmax(angle_dl_beacon_ue, axis=0)
 
 # Evaluates if this is making sense
 for k in range(K):
@@ -82,10 +85,13 @@ for k in range(K):
           )
 
 
-breakpoint()
+#breakpoint()
 ########################################
 # Actual simulation
 ########################################
+
+# Range of configurations
+num_configs_range = np.array([4, 8, 16, 32])
 
 # Probability of access
 prob_access = 0.001
@@ -94,17 +100,24 @@ prob_access = 0.001
 num_inactive_ue_range = np.arange(100, 10100, step=100)
 
 # Number of setups
-num_setups = 100
+num_setups = int(1e4)
 
 # Prepare to count number of collisions
 num_collisions = np.zeros((num_inactive_ue_range.size, num_setups))
-num_collisions_ris_assisted = np.zeros((num_inactive_ue_range.size, num_setups))
+num_collisions_ris_assisted_ideal = np.zeros((num_configs_range.size, num_inactive_ue_range.size, num_setups))
+num_collisions_ris_assisted_corrupted = np.zeros((num_configs_range.size, num_inactive_ue_range.size, num_setups))
+
+# Prepare to save probability of collisions
+prob_collisions = np.zeros((num_inactive_ue_range.size, num_setups))
+prob_collisions_ris_assisted_ideal = np.zeros((num_configs_range.size, num_inactive_ue_range.size, num_setups))
+prob_collisions_ris_assisted_corrupted = np.zeros((num_configs_range.size, num_inactive_ue_range.size, num_setups))
+
 
 #####
 
 
-# Get DL reflection coefficients (this is fixed)
-reflection_coefficients_dl = box.get_reflection_coefficients_dl
+# Place BS and RIS (fixed entities)
+box.place_bs(distance=10, zenith_angle_deg=45)
 
 # Go through all different number of inactive UEs
 for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
@@ -122,45 +135,70 @@ for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
         # Place UEs
         box.place_ue(int(Ka))  # TODO: needed to use int here since Ka is of type numpy.int32
 
-        # Evaluate deterministic channel model
-        channel_gains_dl, phase_shifts_dl = box.get_channel_model_dl()
-
         # Pilot selection
         pilot_selections = np.random.randint(0, taup, size=Ka).astype(int)
 
-        # Generate noise vector at UEs
-        noise_ue = ((sigma2 / 2) ** (1 / 2)) * (np.random.randn(Ka) + 1j * np.random.randn(Ka))
-
-        # Compute received DL beacon of shape (S,K)
-        rx_dl_beacon_ue = np.sqrt(box.bs.max_pow * taup * channel_gains_dl)[np.newaxis, :] * \
-                          np.exp(1j * phase_shifts_dl).sum(axis=-1) + noise_ue[np.newaxis, :]
-
-        # Compute angles of received DL beacon in each configuration for each UE
-        angle_dl_beacon_ue = np.abs(np.angle(rx_dl_beacon_ue))
-
-        # Find the best configuration for each UE in terms of minimum phase shift
-        best_magnitude_config_ue = np.argmin(angle_dl_beacon_ue, axis=0)
-
-        # Combine pilot selection and best configs
-        temp = [(x, y) for (x, y) in zip(pilot_selections, best_magnitude_config_ue)]
-
-        angular_based_ue = np.empty(len(temp), dtype=object)
-        angular_based_ue = temp
-        # TODO: why the magnitude_based_ue is defined but overwritten in one line? Might be better to simply use "magnitude_based_ue = temp.copy()" ?
-        # TODO: ANN. Note that temp is a list of tuples [(,), (,)], and magnitude_based_ue is an array of tuples nd.array([(,), (,)]);  this was the best way that
-        # I found to transform one to the other; if you simply do nd.array(temp), this shall return a 2 dimension array, where each col represent an entry of the tuple.
-        # Note that using this construct (a,b) is desired because it is easy to compare (a,b) == (c,d) by overriding the == operator
-
-        del temp
-
-        _, collision_counting_ris_assisted = np.unique(angular_based_ue, return_counts=True, axis=0)
-
-        # Count number of collisions: same pilot AND best configuration. The -1 is to disregard the non-collision case
-        num_collisions_ris_assisted[ii, ss] = (collision_counting_ris_assisted - 1).sum()
-
         # Count number of collisions w/o RIS assistance
         _, collision_counting = np.unique(pilot_selections, return_counts=True)
-        num_collisions[ii, ss] = (collision_counting - 1).sum()
+        collision_counting[collision_counting <= 1.0] = 0.0
+
+        num_collisions[ii, ss] = collision_counting.sum()
+
+        # Go through all number of configurations
+        for cc, num_configs in enumerate(num_configs_range):
+
+            # Place RIS
+            box.place_ris(num_configs=num_configs, num_els_v=Na, num_els_h=Nb)
+
+            # Evaluate deterministic channel model
+            channel_gains_dl, phase_shifts_dl = box.get_channel_model_dl()
+
+            # Generate noise vector at UEs
+            noise_ue = np.sqrt(sigma2 / 2) * (np.random.randn(num_configs, Ka) + 1j * np.random.randn(num_configs, Ka))
+
+            # Compute received DL beacon of shape (S,K)
+            rx_dl_beacon_ue = np.sqrt(box.bs.max_pow * taup * channel_gains_dl)[np.newaxis, :] * \
+                              np.exp(1j * phase_shifts_dl).sum(axis=-1)
+
+            rx_dl_beacon_ue_corrupted = rx_dl_beacon_ue + noise_ue
+
+            # Compute angles of received DL beacon for each configuration for each UE
+            angle_dl_beacon_ue = np.abs(np.angle(rx_dl_beacon_ue))
+            angle_dl_beacon_ue_corrupted = np.abs(np.angle(rx_dl_beacon_ue_corrupted))
+
+            # Find the best configuration for each UE
+            best_magnitude_config_ue = np.argmax(angle_dl_beacon_ue, axis=0)
+            best_magnitude_config_ue_corrupted = np.argmax(angle_dl_beacon_ue_corrupted, axis=0)
+
+            # Combine pilot selection and best configs
+            temp1 = [(x, y) for (x, y) in zip(pilot_selections, best_magnitude_config_ue)]
+            temp2 = [(x, y) for (x, y) in zip(pilot_selections, best_magnitude_config_ue_corrupted)]
+
+            # Prepare and save
+            angular_based_ue = np.empty(len(temp1), dtype=object)
+            angular_based_ue_corrupted = np.empty(len(temp2), dtype=object)
+
+            angular_based_ue = temp1
+            angular_based_ue_corrupted = temp2
+
+            del temp1, temp2
+
+            # Count number of collisions: same pilot AND best configuration.
+            # The -1 is to disregard the non-collision case
+            _, collision_counting_ris_assisted = np.unique(angular_based_ue, return_counts=True, axis=0)
+            collision_counting_ris_assisted[collision_counting_ris_assisted <= 1.0] = 0.0
+
+            _, collision_counting_ris_assisted_corrupted = np.unique(angular_based_ue_corrupted, return_counts=True, axis=0)
+            collision_counting_ris_assisted_corrupted[collision_counting_ris_assisted_corrupted <= 1.0] = 0.0
+
+            num_collisions_ris_assisted_ideal[cc, ii, ss] = collision_counting_ris_assisted.sum()
+            num_collisions_ris_assisted_corrupted[cc, ii, ss] = collision_counting_ris_assisted_corrupted.sum()
+
+    # Compute average probabilities
+    prob_collisions[ii, :] = num_collisions[ii, :] / num_active_ue_range[np.newaxis, :]
+
+    prob_collisions_ris_assisted_ideal[:, ii, :] = num_collisions_ris_assisted_ideal[:, ii, :] / num_active_ue_range[np.newaxis, np.newaxis, :]
+    prob_collisions_ris_assisted_corrupted[:, ii, :] = num_collisions_ris_assisted_corrupted[:, ii, :] / num_active_ue_range[np.newaxis, np.newaxis, :]
 
 ########################################
 # Plot
@@ -174,7 +212,11 @@ rc('text', usetex=True)
 fig, ax = plt.subplots()
 
 ax.plot(num_inactive_ue_range, num_collisions.mean(axis=-1), label='Classical')
-ax.plot(num_inactive_ue_range, num_collisions_ris_assisted.mean(axis=-1), label='RIS-assisted: $S =' + str(S) + '$')
+
+ax.plot(num_inactive_ue_range, num_collisions_ris_assisted_ideal[0].mean(axis=-1), label='RIS-assisted: $S = 4$')
+ax.plot(num_inactive_ue_range, num_collisions_ris_assisted_ideal[1].mean(axis=-1), label='RIS-assisted: $S = 8$')
+ax.plot(num_inactive_ue_range, num_collisions_ris_assisted_ideal[2].mean(axis=-1), label='RIS-assisted: $S = 16$')
+ax.plot(num_inactive_ue_range, num_collisions_ris_assisted_ideal[3].mean(axis=-1), label='RIS-assisted: $S = 32$')
 
 # Set axis
 ax.set_xlabel('number of inactive UEs')
@@ -189,3 +231,30 @@ ax.legend()
 # Finally
 plt.grid(color='#E9E9E9', linestyle='--', linewidth=0.5)
 plt.show(block=False)
+
+
+##
+
+fig, ax = plt.subplots()
+
+ax.plot(num_inactive_ue_range, np.nanmean(prob_collisions, axis=-1), label='Classical')
+
+ax.plot(num_inactive_ue_range, np.nanmean(prob_collisions_ris_assisted_ideal[0], axis=-1), label='RIS-assisted: $S = 4$')
+ax.plot(num_inactive_ue_range, np.nanmean(prob_collisions_ris_assisted_ideal[1], axis=-1), label='RIS-assisted: $S = 8$')
+ax.plot(num_inactive_ue_range, np.nanmean(prob_collisions_ris_assisted_ideal[2], axis=-1), label='RIS-assisted: $S = 16$')
+ax.plot(num_inactive_ue_range, np.nanmean(prob_collisions_ris_assisted_ideal[3], axis=-1), label='RIS-assisted: $S = 32$')
+
+# Set axis
+ax.set_xlabel('number of inactive UEs')
+ax.set_ylabel('average probability of collisions')
+
+# # limits
+# ax.set_ylim(ymin=-self.ell0 / 2)
+
+# Legend
+ax.legend()
+
+# Finally
+plt.grid(color='#E9E9E9', linestyle='--', linewidth=0.5)
+plt.show(block=False)
+
