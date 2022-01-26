@@ -339,11 +339,9 @@ class Box:
         # phase_shifts_n_to_k = self.wavenumber * np.linalg.norm(final, axis=-1)
 
         # Final phase shift
-        phase_shifts_dl = 2 * np.pi * np.mod(
-            phase_shifts_b_to_n[np.newaxis, np.newaxis, :] +\
-            reflection_coefficients_dl[:, np.newaxis, :] +\
-            phase_shifts_n_to_k
-            , 1)
+        phase_shifts_dl = phase_shifts_b_to_n[np.newaxis, np.newaxis, :] +\
+                          reflection_coefficients_dl[:, np.newaxis, :] +\
+                          phase_shifts_n_to_k
 
         return channel_gains_dl, phase_shifts_dl
 

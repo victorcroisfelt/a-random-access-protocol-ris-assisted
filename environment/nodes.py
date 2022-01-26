@@ -287,8 +287,8 @@ class RIS(Node):
         # Plot origin
         ax.plot(0, 0, '.', color='black')
 
-        ax.set_xlim([-0.05, 0.05])
-        ax.set_ylim([-0.05, 0.05])
+        ax.set_xlim([np.min(self.pos_els[:, 0]) - 0.05, np.max(self.pos_els[:, 0]) + 0.05])
+        ax.set_ylim([np.min(self.pos_els[:, 2]) - 0.05, np.max(self.pos_els[:, 2]) + 0.05])
 
         ax.set_xlabel("x [m]")
         ax.set_ylabel("z [m]")
