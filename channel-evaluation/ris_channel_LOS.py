@@ -47,7 +47,7 @@ def array_factor(src_angle: float, dst_angle: float, conf_x: float,
     :param w_length: wavelength of the central frequency
     """
     w_number = 2 * np.pi / w_length
-    a = np.piecewise(conf_x - np.sin(dst_angle) + np.sin(src_angle), [conf_x - np.sin(dst_angle) + np.sin(src_angle) == 0, conf_x - np.sin(dst_angle) + np.sin(src_angle) != 0],
+    a = np.piecewise(conf_x - np.sin(src_angle) + np.sin(dst_angle), [conf_x - np.sin(src_angle) + np.sin(dst_angle) == 0, conf_x - np.sin(src_angle) + np.sin(dst_angle) != 0],
                      [el_num_x,
                      lambda x: np.sin(el_num_x * el_dist_x * w_number * x / 2) / np.sin(el_dist_x * w_number * x / 2)])
     # np.sin(el_num_x * el_dist_x * w_number * (conf_x - np.sin(dst_angle) + np.sin(src_angle)) / 2) / np.sin(el_dist_x * w_number * (conf_x - np.sin(dst_angle) + np.sin(src_angle)) / 2)])
@@ -77,7 +77,7 @@ samples = int(10000)
 output_dir = os.path.join(os.path.expanduser('~'), 'uni/plots/ris', str(date.today()))
 if not os.path.exists(output_dir):
     os.mkdir(output_dir)
-render = True
+render = False
 src_ang = np.pi / 4      # assumed known
 dst_angles = np.pi / 2 * np.array([1/3, 1/2, 2/3])
 
@@ -130,7 +130,7 @@ if __name__ == "__main__":
         plt.close()
 
     # Array_factor
-    phi = np.sin(np.pi/2 * np.linspace(0, 1, samples)) - np.sin(src_ang)    # compensating the known angle
+    phi = -np.sin(np.linspace(0, np.pi, samples)) + np.sin(src_ang)    # compensating the known angle
     Nd_struct = [(10, wavelength / 2), (10, wavelength / 4), (100, wavelength / 2), (100, wavelength / 4)]
 
     for iteration in Nd_struct:
@@ -148,9 +148,9 @@ if __name__ == "__main__":
         # Plotting
         _, ax = plt.subplots()
         for i in range(len(dst_angles)):
-            ax.plot(np.rad2deg(np.arcsin(phi + np.sin(src_ang))), array[:, i], label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i]))}°')
+            ax.plot(-np.rad2deg(np.arcsin(phi - np.sin(src_ang))), array[:, i], label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i]))}°')
         plt.ylabel(r'$|\mathcal{A}^{\mathrm{DL}}_k|^2$')
-        plt.xlabel(r'$\arcsin(\phi + \sin\theta_b)$')
+        plt.xlabel(r'$-\arcsin(\psi)$')
         ax.grid()
         ax.legend()
 
