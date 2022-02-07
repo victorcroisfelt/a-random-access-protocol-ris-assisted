@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 import os
 from datetime import date
+import sympy as sy
+import argparse
 
 
 # LaTeX type definitions
@@ -12,6 +14,18 @@ rc('font', **{'family': 'sans serif', 'serif': ['Computer Modern']})
 rc('text', usetex=True)
 rc('lines', **{'markerfacecolor': "None", 'markersize': 5})
 rc('axes.grid', which='minor')
+
+
+def command_parser():
+    """Parse command line using arg-parse and get user data to run the render.
+
+        :return: the parsed arguments
+    """
+    # Parse depending on the boolean watch flag
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-r", "--render", action="store_true", default=False)
+    args: dict = vars(parser.parse_args())
+    return list(args.values())
 
 
 def pathloss2d(src_angle: float, dst_angle: float,
@@ -51,21 +65,26 @@ def array_factor(src_angle: float, dst_angle: float, conf_x: float,
                      [el_num_x,
                      lambda x: np.sin(el_num_x * el_dist_x * w_number * x / 2) / np.sin(el_dist_x * w_number * x / 2)])
     # np.sin(el_num_x * el_dist_x * w_number * (conf_x - np.sin(dst_angle) + np.sin(src_angle)) / 2) / np.sin(el_dist_x * w_number * (conf_x - np.sin(dst_angle) + np.sin(src_angle)) / 2)])
-    return np.abs(a) ** 2
+    return (np.abs(a) / el_num_x) ** 2
 
 
 def ff_dist(el_num_x, el_dist_x, w_length):
     return 2 / w_length * (el_num_x * el_dist_x) ** 2
+
+
+def degarcsin(x):
+    return np.rad2deg(np.arcsin(x))
+
 
 # Deterministic parameters
 gain_ue = 2.15          # [dBi]
 gain_bs = 4.85          # [dBi]
 dist_bs = 30            # [m]
 dist_ue = 30
-angle_bs = np.pi / 4    # [rad]
 N_x = 10                # RIS elements on x-axis
 N_z = 10                # RIS elements on z-axis
-fc = 3e9                # Working frequency [Hz]
+fc = 3.8e9                # Working frequency [Hz]
+src_ang = np.pi / 4  # assumed known
 wavelength = c / fc     # wavelength
 
 # Random parameters
@@ -73,15 +92,16 @@ seed = None     # Needed for reproducibility
 rng = np.random.default_rng(seed)
 samples = int(10000)
 
-# Simulation parameters
+# Standard output for rendering
 output_dir = os.path.join(os.path.expanduser('~'), 'uni/plots/ris', str(date.today()))
-if not os.path.exists(output_dir):
-    os.mkdir(output_dir)
-render = False
-src_ang = np.pi / 4      # assumed known
-dst_angles = np.pi / 2 * np.array([1/3, 1/2, 2/3])
 
 if __name__ == "__main__":
+    render = command_parser()[0]
+    # Crate the output folder if missing
+    if render:
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
+
     # Element spacing and far-field approximation
     d_x = np.array([4 * wavelength, 2 * wavelength, wavelength, wavelength / 2,  wavelength / 4])
 
@@ -130,27 +150,44 @@ if __name__ == "__main__":
         plt.close()
 
     # Array_factor
+    colors = ['blue', 'orange', 'green', 'purple', 'darkred']
+    dst_angles = np.pi / 2 * np.array([1 / 6, 1 / 2, 5 / 6])
     phi = -np.sin(np.linspace(0, np.pi, samples)) + np.sin(src_ang)    # compensating the known angle
-    Nd_struct = [(10, wavelength / 2), (10, wavelength / 4), (100, wavelength / 2), (100, wavelength / 4)]
+    # Nd_struct is a list of tuple. Each tuple contains N_x and d_x of the RIS
+    Nd_struct = [(8, wavelength), (16, wavelength)]
 
     for iteration in Nd_struct:
         array = np.zeros((len(phi), len(dst_angles)))  # initialization
         N_x = iteration[0]
         d_x = iteration[1]
         ff_d = np.around((ff_dist(d_x, N_x, wavelength)))
-        title_values = f'($N_x = {N_x}$,' + r'$d_x = \lambda /' + f'{np.around(wavelength / d_x):.0f}$,' + r'$d_{\mathrm{ff}} =' + f' {ff_d:.0f}$)'
+        lam_denominator_str = f'/{np.around(wavelength / d_x):.0f}' if wavelength / d_x > 1 else ''
+        title_values = f'($N_x = {N_x}$, ' + r'$d_x = \lambda' + lam_denominator_str + r'$, $d_{\mathrm{ff}} =' + f' {ff_d:.0f}$)'
         title = r'Array factor compensating the source angle ' + title_values
+        # compute the FNBM
+        FNBM_right = wavelength / d_x / N_x - np.sin(dst_angles)
+        FNBM_left = -wavelength / d_x / N_x - np.sin(dst_angles)
+        a = 1.391
+        HPBM_left = wavelength * a / N_x / d_x / np.pi - np.sin(dst_angles)
+        HPBM_right = -wavelength * a / N_x / d_x / np.pi - np.sin(dst_angles)
+
+
 
         # Compute array factor
         for i in range(len(dst_angles)):
             array[:, i] = array_factor(src_ang, dst_angles[i], phi, d_x, N_x, wavelength)
+            # compute the HPBW
 
         # Plotting
         _, ax = plt.subplots()
         for i in range(len(dst_angles)):
-            ax.plot(-np.rad2deg(np.arcsin(phi - np.sin(src_ang))), array[:, i], label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i]))}°')
-        plt.ylabel(r'$|\mathcal{A}^{\mathrm{DL}}_k|^2$')
-        plt.xlabel(r'$-\arcsin(\psi)$')
+            ax.plot(degarcsin(phi - np.sin(src_ang)), array[:, i], label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i]))}°', c=colors[i])
+            plt.axvline(x=degarcsin(FNBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+            plt.axvline(x=degarcsin(FNBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+            plt.axvline(x=degarcsin(HPBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+            plt.axvline(x=degarcsin(HPBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+        plt.ylabel(r'$\frac{|\mathcal{A}^{\mathrm{DL}}_k|^2}{N_x^2}$')
+        plt.xlabel(r'$\arcsin(\psi)$')
         ax.grid()
         ax.legend()
 
@@ -159,6 +196,34 @@ if __name__ == "__main__":
             plt.show(block=False)
         else:
             filename = os.path.join(output_dir, f'array_factor_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
+            # tikzplotlib.save(filename + '.tex')
+            plt.title(title)
+            plt.savefig(filename + '.png', dpi=300)
+            plt.close()
+
+        # Configurations check
+        conf_num = int(np.ceil(N_x * d_x * np.pi / 2 / wavelength / a))
+        conf_val = wavelength * a / N_x / d_x / np.pi * np.arange(1, conf_num + 1)
+        title = r'AF coverage compensating the source angle ' + title_values
+
+        # TODO: Generate users in random position and test that the probability of power lower than 0.5 having that number of configurations
+        af = np.zeros((len(conf_val), len(dst_angles)))
+        for i in range(len(dst_angles)):
+            af[:, i] = array_factor(src_ang, dst_angles[i], conf_val, d_x, N_x, wavelength)
+
+        _, ax = plt.subplots()
+        for i in range(len(dst_angles)):
+            ax.plot(degarcsin(conf_val - np.sin(src_ang)), af[:, i],  label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i]))}°', c=colors[i])
+        plt.ylabel(r'$\frac{|\mathcal{A}^{\mathrm{DL}}_k|^2}{N_x^2}$')
+        plt.xlabel(r'$\arcsin(\psi)$')
+        ax.grid()
+        ax.legend()
+
+        if not render:
+            plt.title(title)
+            plt.show(block=False)
+        else:
+            filename = os.path.join(output_dir, f'af_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
             # tikzplotlib.save(filename + '.tex')
             plt.title(title)
             plt.savefig(filename + '.png', dpi=300)
