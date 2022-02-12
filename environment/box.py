@@ -101,37 +101,64 @@ class Box:
         self.ris = None
 
         # Downlink
-        self.incoming_angle_dl = None   # zenith angle
+        self.incoming_angle_dl = None   # BS zenith angle (theta_b); float
 
-        self.incoming_direction_dl = None   # unit vector containing direction of incoming wave propagation
-        self.scattered_direction_dl = None  # unit vector containing direction of scattered wave propagation
+        self.incoming_direction_dl = None   # unit vector of shape (3, ) containing direction of DL incoming wave propagation
+        self.scattered_direction_dl = None  # unit vector of shape (num_configs, 3) containing direction of DL scattered wave propagation
+
+        # Uplink
+        self.incoming_angle_ul = None   # UE's zenith angles (theta_k); ndarray of shape (num_ues, )
+
+        self.incoming_direction_ul = None   # unit vector of shape (num_ues, 3) containing direction of DL incoming wave propagation
+        self.scattered_direction_ul = None  # unit vector of shape (num_configs, 3) containing direction of DL scattered wave propagation
 
     def set_incoming_direction_dl(self, bs_zenith_angle):
-        """Set Downlink incoming direction as a unit vector.
-
-            incoming_direction_dl : ndarray of shape (3, )
+        """Set Downlink incoming direction as a unit vector of shape (3, ).
 
         Parameters
         ----------
-            bs_zenith_angle : float
+        bs_zenith_angle : float
             BS zenith angles in radians.
         """
-        self.incoming_direction_dl = np.array([np.sin(bs_zenith_angle), -np.cos(bs_zenith_angle), 0])
+        self.incoming_direction_dl = np.zeros(3)
+
+        self.incoming_direction_dl[0] = +np.sin(bs_zenith_angle)
+        self.incoming_direction_dl[1] = -np.cos(bs_zenith_angle)
 
     def set_scattered_direction_dl(self, configs):
-        """Set Downlink scattered direction as a unit vector.
-
-            scattered_direction_dl : ndarray of shape (num_configs, 3)
+        """Set Downlink scattered direction as a unit vector of shape (num_configs, 3).
 
         Parameters
         ----------
-            bs_zenith_angle : float
-            BS zenith angles in radians.
+        configs : ndarray of shape (num_configs, )
+            Set of configuration angles.
         """
         self.scattered_direction_dl = np.zeros((configs.size, 3))
 
-        self.scattered_direction_dl[:, 0] = np.sin(configs)
-        self.scattered_direction_dl[:, 1] = np.cos(configs)
+        self.scattered_direction_dl[:, 0] = +np.sin(configs)
+        self.scattered_direction_dl[:, 1] = +np.cos(configs)
+
+    def set_incoming_direction_ul(self, ue_zenith_angles):
+        """Set Uplink incoming directions as unit vectors of shape (num_ues, 3).
+
+        Parameters
+        ----------
+        ue_zenith_angles : ndarray of shape (num_ues, )
+             UE's zenith angles.
+        """
+        self.incoming_direction_ul = np.zeros((ue_zenith_angles.size, 3))
+
+        self.incoming_direction_ul[:, 0] = -np.sin(ue_zenith_angles)
+        self.incoming_direction_ul[:, 1] = -np.cos(ue_zenith_angles)
+
+    def set_scattered_direction_ul(self):
+        """Set Uplink scattered direction as a unit vector of shape (3, ).
+
+        """
+        self.scattered_direction_ul = np.zeros(3)
+
+        self.scattered_direction_ul[0] = -np.sin(self.incoming_angle_dl)
+        self.scattered_direction_ul[1] = +np.cos(self.incoming_angle_dl)
 
     def place_bs(
             self,
@@ -162,6 +189,7 @@ class Box:
         if zenith_angle_deg is None:
             zenith_angle_deg = 45
 
+        # Store DL incoming angle
         self.incoming_angle_dl = np.deg2rad(zenith_angle_deg)
 
         # Set incoming direction in the DL
@@ -172,9 +200,6 @@ class Box:
 
         # Append BS
         self.bs = BS(1, pos, gain, max_pow)
-
-        # self.db0 = distance0
-        # self.thetab = np.deg2rad(zenith_angle_deg)
 
     def place_ue(
             self,
@@ -196,28 +221,19 @@ class Box:
         max_pow : float
            Maximum power available at each UE.
         """
-        # Control on INPUT
+        # Control on input
         if not isinstance(n, int) or (n <= 0):  # Cannot add a negative number od nodes
             raise ValueError('n must be int >= 0.')
 
-        # # Compute position
-        # if pos_polar is None:
-        #     # if the position is not given, a random position inside the box is computed
-        #     pos = np.hstack((self.rng.uniform(self.ell0, self.ell, (n, 2)), np.zeros((n, 1))))
-        #
-        # else:  # translate from polar to cardinal
-        #     try:
-        #         pos = np.vstack(
-        #             (pos_polar[:, 0] * np.cos(pos_polar[:, 1]), pos_polar[:, 0] * np.sin(pos_polar[:, 1]))).T
-        #         # Add third dimension for coherency with RIS
-        #         pos = np.hstack((pos[:, 0], pos[:, 1], np.zeros((n, 1))))
-        #     except IndexError:
-        #         # Add third dimension for coherency with RIS
-        #         pos = pos_polar[0] * np.array([[np.cos(pos_polar[1]), np.sin(pos_polar[1]), 0]])
-
-        # Drop UEs
+        # Drop UEs, pos is a ndarray of shape (K, 3)
         pos = np.zeros((n, 3))
         pos[:, :-1] = self.square_length * self.rng.rand(n, 2) + self.min_square_length
+
+        # Store UL incoming angles
+        self.incoming_angle_ul = np.arctan2(pos[:, 0], pos[:, 1])
+
+        # Set incoming directions in the UL
+        self.set_incoming_direction_ul(self.incoming_angle_ul)
 
         # Append UEs
         self.ue = UE(n, pos, gain, max_pow)
@@ -257,6 +273,9 @@ class Box:
         # Set scattered direction in the DL
         self.set_scattered_direction_dl(self.ris.configs)
 
+        # Set scattered direction in the UL
+        self.set_scattered_direction_ul()
+
     @property
     def get_reflection_coefficients_dl(self):
         """Compute DL reflection coefficients for each configuration.
@@ -267,26 +286,83 @@ class Box:
             Matrix containing the DL reflection coefficients for each configuration and each element.
         """
 
-        # Prepare to save the reflection coefficients for each configuration
+        # Generalized Snell's Law
         constants = self.wavenumber * (np.sin(self.incoming_angle_dl) - np.sin(self.ris.configs))
         reflection_coefficients_dl = constants[:, np.newaxis] * self.ris.pos_els[:, 0]
 
         return reflection_coefficients_dl
 
-    # Channel build
+    @property
+    def get_reflection_coefficients_ul(self):
+        """Compute UL reflection coefficients for each configuration.
+
+        Returns
+        -------
+        reflection_coefficients_ul : ndarray of shape (num_configs, num_els)
+            Matrix containing the UL reflection coefficients for each configuration and each element.
+        """
+
+        return -self.get_reflection_coefficients_dl
+
     def get_channel_model_dl(self):
         """Get Downlink channel gains and phase shifts.
 
         Returns
         -------
-        channel_gains_dl : ndarray of shape (K, )
+        channel_gains_dl : ndarray of shape (num_ues, )
             Downlink channel gain between the BS and each UE for each RIS element and K UEs.
 
-        phase_shifts_bs : ndarray of shape (N, )
-            Propagation phase shifts between the BS and each RIS element for N elements.
+        phase_shifts_dl : ndarray of shape (num_configs, num_ues, num_els)
+            Total Downlink phase shifts between the BS and each RIS element for N elements.
 
-        phase_shifts_ue : ndarray of shape (K, N)
-            Propagation phase shifts between each UE and each RIS element for K UEs and N elements.
+        """
+        # Compute distance BS-RIS
+        dist_bs = np.linalg.norm(self.bs.pos - self.ris.pos)
+
+        # Compute distance RIS-UE of shape (num_ues, )
+        dist_ue = np.linalg.norm(self.ue.pos - self.ris.pos, axis=-1)
+
+        # Compute pathloss constant of shape (num_ues, )
+        pathloss_constant = self.bs.gain * self.ue.gain * self.ris.area ** 2 / (4 * np.pi * dist_bs * self.ris.num_els) ** 2
+
+        # Common factor of shape (num_ues, )
+        common_factor = pathloss_constant / (dist_ue ** 2)
+
+        # DL channel gains of shape (num_ues, )
+        channel_gains_dl = common_factor * np.cos(self.incoming_angle_dl) ** 2
+
+        # BS phase shifts of shape (num_els, )
+        dist_b_onto_t = (self.bs.pos * self.incoming_direction_dl).sum()    # float
+        dist_n_onto_t = (self.ris.pos_els * self.incoming_direction_dl[np.newaxis, :]).sum(axis=-1)     # shape (num_els, )
+
+        phase_shifts_b_to_n = self.wavenumber * (dist_b_onto_t - dist_n_onto_t)
+
+        # Get reflection coefficients DL (num_configs, num_els)
+        reflection_coefficients_dl = self.get_reflection_coefficients_dl
+
+        # UE's phase shifts of shape (num_configs, num_ues, num_els)
+        dist_n_onto_r = (self.ris.pos_els[np.newaxis, :, :] * self.scattered_direction_dl[:, np.newaxis, :]).sum(axis=-1)   # shape (num_configs, num_els)
+        dist_k_onto_r = (self.ue.pos[np.newaxis, :, :] * self.scattered_direction_dl[:, np.newaxis, :]).sum(axis=-1)    # shape (num_configs, num_ues)
+
+        phase_shifts_n_to_k = self.wavenumber * (dist_n_onto_r[:, np.newaxis, :] - dist_k_onto_r[:, :, np.newaxis])
+
+        # Final phase shift of shape (num_configs, num_ues, num_els)
+        phase_shifts_dl = phase_shifts_b_to_n[np.newaxis, np.newaxis, :] +\
+                          reflection_coefficients_dl[:, np.newaxis, :] +\
+                          phase_shifts_n_to_k
+
+        return channel_gains_dl, phase_shifts_dl
+
+    def get_channel_model_ul(self):
+        """Get Uplink channel gains and phase shifts.
+
+        Returns
+        -------
+        channel_gains_ul : ndarray of shape (K, )
+            Uplink channel gain between the BS and each UE for each RIS element and K UEs.
+
+        phase_shifts_ul : ndarray of shape (num_configs, K, N)
+            Total uplink phase shift between the BS and each RIS element for N elements.
         """
         # Compute distance BS-RIS
         dist_bs = np.linalg.norm(self.bs.pos - self.ris.pos)
@@ -294,56 +370,36 @@ class Box:
         # Compute distance RIS-UE of shape (K,)
         dist_ue = np.linalg.norm(self.ue.pos - self.ris.pos, axis=-1)
 
-        # Compute constant Omega_k
-        constant = self.bs.gain * self.ue.gain * self.ris.area ** 2 / (4 * np.pi * dist_bs * self.ris.num_els) ** 2
+        # Compute pathloss constant
+        pathloss_constant = self.bs.gain * self.ue.gain * self.ris.area ** 2 / (4 * np.pi * dist_bs * self.ris.num_els)**2
 
         # Common factor
-        common_factor = constant / (dist_ue ** 2)
+        common_factor = pathloss_constant / (dist_ue ** 2)
 
-        # DL channel gains
-        channel_gains_dl = common_factor * np.cos(self.incoming_angle_dl) ** 2
+        # UL channel gains
+        channel_gains_ul = common_factor * np.cos(self.incoming_angle_ul) ** 2
 
-        # # Compute distance BS-RIS-elements of shape (N,)
-        # dist_bs_el = np.linalg.norm(self.bs.pos - self.ris.pos_els, axis=-1)
-        #
-        # # Compute distance BS-RIS-elements of shape (K,N)
-        # dist_ue_el = np.linalg.norm(self.ue.pos[:, np.newaxis, :] - self.ris.pos_els, axis=-1)
+        # UE's phase shifts
+        dist_ue_onto_t = (self.ue.pos * self.incoming_direction_ul).sum(axis=-1) # shape (num_ues, )
+        dist_n_onto_t = (self.ris.pos_els[np.newaxis, :] * self.incoming_direction_ul[:, np.newaxis, :]).sum(axis=-1) # shape (num_ues, num_els)
 
-        # # BS phase shifts
-        # phase_shifts_bs = 2 * np.pi * np.mod(dist_bs_el / self.wavelength, 1)
-        #
-        # # UE phase shifts
-        # phase_shifts_ue = 2 * np.pi * np.mod(dist_ue_el / self.wavelength, 1)
+        phase_shifts_ue_to_n = self.wavenumber * (dist_ue_onto_t[:, np.newaxis] - dist_n_onto_t) # shape (num_ues, num_els)
 
-        # BS phase shifts of shape (num_els,)
-        dist_b_onto_t = (self.bs.pos * self.incoming_direction_dl).sum()
-        dist_n_onto_t = (self.ris.pos_els * self.incoming_direction_dl[np.newaxis, :]).sum(axis=-1)
+        # Get reflection coefficients UL (num_configs, num_els)
+        reflection_coefficients_ul = self.get_reflection_coefficients_ul
 
-        phase_shifts_b_to_n = self.wavenumber * (dist_b_onto_t - dist_n_onto_t)
+        # BS phase shifts of shape (num_els, )
+        dist_n_onto_r = (self.ris.pos_els * self.scattered_direction_ul).sum(axis=-1)  # shape (num_els, )
+        dist_b_onto_r = (self.bs.pos * self.scattered_direction_ul).sum(axis=-1)  # float
 
-        # Get reflection coefficients DL (num_configs, num_els)
-        reflection_coefficients_dl = self.get_reflection_coefficients_dl
+        phase_shifts_n_to_bs = self.wavenumber * (dist_n_onto_r - dist_b_onto_r)  # shape (num_els, )
 
-        # UE phase shifts of shape (num_configs, num_ues, num_els)
-        dist_n_onto_r = (self.ris.pos_els[np.newaxis, :, :] * self.scattered_direction_dl[:, np.newaxis, :]).sum(axis=-1)
-        dist_k_onto_r = (self.ue.pos[np.newaxis, :, :] * self.scattered_direction_dl[:, np.newaxis, :]).sum(axis=-1)
+        # Final phase shift of shape (num_configs, num_ues, num_els)
+        phase_shifts_ul = phase_shifts_ue_to_n[np.newaxis, :, :] +\
+                          reflection_coefficients_ul[:, np.newaxis, :] +\
+                          phase_shifts_n_to_bs[np.newaxis, np.newaxis, :]
 
-        phase_shifts_n_to_k = self.wavenumber * (dist_n_onto_r[:, np.newaxis, :] - dist_k_onto_r[:, :, np.newaxis])
-
-        # dist_n_k_onto_r = dist_n_onto_r[:, np.newaxis, :] - dist_k_onto_r[:, :, np.newaxis]
-        #
-        # ue_direction = self.ue.pos / np.linalg.norm(self.ue.pos)
-        # inner = ((self.scattered_direction_dl[:, np.newaxis, :] * ue_direction[np.newaxis, :, :]).sum(axis=-1))
-        # vector = inner[:, :, np.newaxis] * self.ue.pos[np.newaxis, :, :]
-        # final = dist_n_k_onto_r[:, :, :, np.newaxis] * vector[:, :, np.newaxis, :]
-        # phase_shifts_n_to_k = self.wavenumber * np.linalg.norm(final, axis=-1)
-
-        # Final phase shift
-        phase_shifts_dl = phase_shifts_b_to_n[np.newaxis, np.newaxis, :] +\
-                          reflection_coefficients_dl[:, np.newaxis, :] +\
-                          phase_shifts_n_to_k
-
-        return channel_gains_dl, phase_shifts_dl
+        return channel_gains_ul, phase_shifts_ul
 
     # Visualization methods
     def plot_reflection_coefficients(self, reflection_coefficients):

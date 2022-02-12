@@ -46,15 +46,8 @@ num_setups = int(1e3)
 # Simulation
 ########################################
 
-# Prepare to count number of collisions
-num_collisions = np.zeros((num_inactive_ue_range.size, num_setups))
-num_collisions_ris_assisted_ideal = np.zeros((num_configs_range.size, num_inactive_ue_range.size, num_setups))
-num_collisions_ris_assisted_corrupted = np.zeros((num_configs_range.size, num_inactive_ue_range.size, num_setups))
-
-# Prepare to save probability of collisions
-prob_collisions = np.zeros((num_inactive_ue_range.size, num_setups))
-prob_collisions_ris_assisted_ideal = np.zeros((num_configs_range.size, num_inactive_ue_range.size, num_setups))
-prob_collisions_ris_assisted_corrupted = np.zeros((num_configs_range.size, num_inactive_ue_range.size, num_setups))
+# Prepare to store receiver powers
+rx_powers = {config: [] for config in num_configs_range}
 
 
 #####
@@ -74,14 +67,12 @@ for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
 
     # Go through all setups
     for ss, num_active_ue in enumerate(num_active_ue_range):
-        # TODO: this is not the most efficient to do this, but just to implement the basics and get a sense
 
         if not num_active_ue:
             continue
-        num_active_ue = 4
 
         # Place UEs
-        box.place_ue(int(num_active_ue))  # TODO: needed to use int here since Ka is of type numpy.int32
+        box.place_ue(int(num_active_ue))
 
         # Pilot selection
         pilot_selections = np.random.randint(0, num_pilots, size=num_active_ue).astype(int)
@@ -131,27 +122,22 @@ for ii, num_inactive_ue in enumerate(num_inactive_ue_range):
             # Prepare to save received UL access attempt of shape (num_configs, num_pilots)
             rx_ul_access_attempt = np.zeros((num_configs, num_pilots))
 
-
-            # Go through ue_choices
+            # Go through all choices
             for k, choice in ue_choices.items():
 
                 # Compute UL received signal response
                 rx_ul_access_attempt[choice[0], choice[1]] += np.sqrt(box.ue.max_pow * num_pilots * channel_gains_ul[k]) * \
                               np.exp(1j * phase_shifts_ul[choice[0], k, :]).sum(axis=-1)
 
-            rx_ul_access_attempt[rx_ul_access_attempt == 0.0] = np.nan
+            # Store received powers
+            rx_powers[num_configs].append(list(rx_ul_access_attempt[rx_ul_access_attempt != 0.0]))
 
+# Processed rx powers
+rx_powers_proc = {config: [] for config in num_configs_range}
 
-
-
-            breakpoint()
-
-
-    # Compute average probabilities
-    prob_collisions[ii, :] = num_collisions[ii, :] / num_active_ue_range[np.newaxis, :]
-
-    prob_collisions_ris_assisted_ideal[:, ii, :] = num_collisions_ris_assisted_ideal[:, ii, :] / num_active_ue_range[np.newaxis, np.newaxis, :]
-    prob_collisions_ris_assisted_corrupted[:, ii, :] = num_collisions_ris_assisted_corrupted[:, ii, :] / num_active_ue_range[np.newaxis, np.newaxis, :]
+# Go through all number of configurations
+for cc, num_configs in enumerate(num_configs_range):
+    rx_powers_proc[num_configs] = np.array([item for sublist in rx_powers[num_configs] for item in sublist])
 
 ########################################
 # Plot
@@ -164,19 +150,13 @@ rc('text', usetex=True)
 # Open axes
 fig, ax = plt.subplots()
 
-ax.plot(num_inactive_ue_range, num_collisions.mean(axis=-1), label='Classical')
-
-ax.plot(num_inactive_ue_range, num_collisions_ris_assisted_ideal[0].mean(axis=-1), label='RIS-assisted: $S = 4$')
-ax.plot(num_inactive_ue_range, num_collisions_ris_assisted_ideal[1].mean(axis=-1), label='RIS-assisted: $S = 8$')
-ax.plot(num_inactive_ue_range, num_collisions_ris_assisted_ideal[2].mean(axis=-1), label='RIS-assisted: $S = 16$')
-ax.plot(num_inactive_ue_range, num_collisions_ris_assisted_ideal[3].mean(axis=-1), label='RIS-assisted: $S = 32$')
+# Go through all number of configurations
+for cc, num_configs in enumerate(num_configs_range):
+    ax.plot(10 * np.log10(np.sort(rx_powers_proc[num_configs]**2)) + 94, np.linspace(0, 1, num=rx_powers_proc[num_configs].size), label='RIS-assisted: S=' + str(cc) + '')
 
 # Set axis
-ax.set_xlabel('number of inactive UEs')
-ax.set_ylabel('average number of collisions')
-
-# # limits
-# ax.set_ylim(ymin=-self.ell0 / 2)
+ax.set_xlabel('UL received SNR')
+ax.set_ylabel('CDF')
 
 # Legend
 ax.legend()
@@ -184,30 +164,3 @@ ax.legend()
 # Finally
 plt.grid(color='#E9E9E9', linestyle='--', linewidth=0.5)
 plt.show(block=False)
-
-
-##
-
-fig, ax = plt.subplots()
-
-ax.plot(num_inactive_ue_range, np.nanmean(prob_collisions, axis=-1), label='Classical')
-
-ax.plot(num_inactive_ue_range, np.nanmean(prob_collisions_ris_assisted_ideal[0], axis=-1), label='RIS-assisted: $S = 4$')
-ax.plot(num_inactive_ue_range, np.nanmean(prob_collisions_ris_assisted_ideal[1], axis=-1), label='RIS-assisted: $S = 8$')
-ax.plot(num_inactive_ue_range, np.nanmean(prob_collisions_ris_assisted_ideal[2], axis=-1), label='RIS-assisted: $S = 16$')
-ax.plot(num_inactive_ue_range, np.nanmean(prob_collisions_ris_assisted_ideal[3], axis=-1), label='RIS-assisted: $S = 32$')
-
-# Set axis
-ax.set_xlabel('number of inactive UEs')
-ax.set_ylabel('average probability of collisions')
-
-# # limits
-# ax.set_ylim(ymin=-self.ell0 / 2)
-
-# Legend
-ax.legend()
-
-# Finally
-plt.grid(color='#E9E9E9', linestyle='--', linewidth=0.5)
-plt.show(block=False)
-
