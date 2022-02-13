@@ -76,6 +76,9 @@ class BS(Node):
         # Init parent class
         super().__init__(n, pos, gain, max_pow)
 
+        self.distance = np.linalg.norm(self.pos)
+        self.angle = np.abs(np.arctan2(self.pos[0], self.pos[1]))
+
     def __repr__(self):
         return f'BS-{self.n}'
 
@@ -113,6 +116,9 @@ class UE(Node):
 
         # Init parent class
         super().__init__(n, pos, gain, max_pow)
+
+        self.distances = np.linalg.norm(self.pos, axis=-1)
+        self.angles = np.abs(np.arctan2(self.pos[:, 0], self.pos[:, 1]))
 
     def __repr__(self):
         return f'UE-{self.n}'

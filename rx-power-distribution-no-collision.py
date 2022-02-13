@@ -62,42 +62,40 @@ for cc, num_configs in enumerate(num_configs_range):
     # Place RIS
     box.place_ris(num_configs=num_configs, num_els_v=Nz, num_els_h=Nx)
 
+    # Get channel gains
+    channel_gains_dl, channel_gains_ul = box.get_channel_model()
 
     ## Step 01. DL - Training Phase
 
-
-    # Get Downlink channel model
-    channel_gains_dl, phase_shifts_dl = box.get_channel_model_dl()
-
     # Compute received DL beacon of shape (num_configs, num_ues)
-    rx_dl_beacon_ue = np.sqrt(box.bs.max_pow * num_pilots * channel_gains_dl)[np.newaxis, :] * \
-                      np.exp(1j * phase_shifts_dl).sum(axis=-1)
+    rx_dl_beacon = np.sqrt(box.bs.max_pow * num_pilots * channel_gains_dl)
 
-    # Compute angles of received DL beacon for each configuration for each UE
-    angle_dl_beacon_ue = np.abs(np.angle(rx_dl_beacon_ue))
+    # Compute received DL SNR of shape (num_configs, num_ues)
+    gamma_dl = np.abs(rx_dl_beacon) ** 2
 
     # Find the best configuration for each UE
-    best_magnitude_config_ue = np.argmax(angle_dl_beacon_ue, axis=0)
+    best_config_ue = np.argmax(gamma_dl, axis=0)
 
 
     ## Step 02. UL - Naive UL response
 
-
-    # Get Uplink channel model
-    channel_gains_ul, phase_shifts_ul = box.get_channel_model_ul()
+    # Generate noise vector at BS
+    noise_bs = np.sqrt(sigma2 / 2) * (np.random.randn(num_configs) + 1j * np.random.randn(num_configs))
 
     # Prepare to save received UL access attempt of shape (num_configs, num_pilots)
     rx_ul_access_attempt = np.zeros(num_setups)
 
     # Go through all choices
-    for k, choice in enumerate(best_magnitude_config_ue):
+    for k, choice in enumerate(best_config_ue):
 
         # Compute UL received signal response
-        rx_ul_access_attempt[k] += np.sqrt(box.ue.max_pow * num_pilots * channel_gains_ul[k]) * \
-                      np.exp(1j * phase_shifts_ul[choice, k, :]).sum(axis=-1)
+        rx_ul_access_attempt[k] += np.sqrt(box.ue.max_pow * num_pilots * channel_gains_ul[choice, k]) + noise_bs[choice]
+
+    # Compute UL received SNR of shape (num_chosen_configs, num_ues)
+    gamma_ul = np.abs(rx_ul_access_attempt) ** 2 / sigma2
 
     # Store received powers
-    rx_powers[num_configs].append(list(rx_ul_access_attempt))
+    rx_powers[num_configs].append(list(gamma_ul))
 
 # Processed rx powers
 rx_powers_proc = {config: [] for config in num_configs_range}
@@ -119,7 +117,7 @@ fig, ax = plt.subplots()
 
 # Go through all number of configurations
 for cc, num_configs in enumerate(num_configs_range):
-    ax.plot(10 * np.log10(np.sort(rx_powers_proc[num_configs]**2)) + 94, np.linspace(0, 1, num=rx_powers_proc[num_configs].size),
+    ax.plot(10 * np.log10(np.sort(rx_powers_proc[num_configs])), np.linspace(0, 1, num=rx_powers_proc[num_configs].size),
             label='RIS-assisted: $S=' + str(num_configs) + '$')
 
 # Set axis
