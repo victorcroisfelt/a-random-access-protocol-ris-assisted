@@ -8,9 +8,9 @@ from matplotlib import rc
 ########################################
 
 # Load data
-best_data = np.load('data/data_best_Sc1_N100.npz')
-rand_data = np.load('data/data_rand_Sc2_N100.npz')
-mini_data = np.load('data/data_min_Sc2_N100.npz')
+best_data = np.load('data/data_best_Sc1_N100_lambda4.npz')
+rand_data = np.load('data/data_rand_Sc2_N100_lambda4.npz')
+mini_data = np.load('data/data_min_Sc2_N100_lambda4.npz')
 
 # Common parameters
 num_configs_range = best_data['num_configs_range']

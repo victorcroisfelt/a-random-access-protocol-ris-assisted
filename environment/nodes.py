@@ -187,7 +187,7 @@ class RIS(Node):
         self.num_els_v = num_els_v  # vertical number of elements
         self.num_els_h = num_els_h  # horizontal number of elements
         self.num_els = num_els_v * num_els_h  # total number of elements
-        self.size_el = wavelength/4
+        self.size_el = wavelength
         self.num_configs = num_configs  # number of configurations
 
         # Store index of elements considering total number
