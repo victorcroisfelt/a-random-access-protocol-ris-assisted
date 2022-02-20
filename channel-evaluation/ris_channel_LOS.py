@@ -1,6 +1,7 @@
 import numpy as np
 import scipy as sp
 from scipy.constants import speed_of_light as c
+from scipy import special
 import matplotlib.pyplot as plt
 from matplotlib import rc
 import os
@@ -61,11 +62,38 @@ def array_factor(src_angle: float, dst_angle: float, conf_x: float,
     :param w_length: wavelength of the central frequency
     """
     w_number = 2 * np.pi / w_length
-    a = np.piecewise(conf_x - np.sin(src_angle) + np.sin(dst_angle), [conf_x - np.sin(src_angle) + np.sin(dst_angle) == 0, conf_x - np.sin(src_angle) + np.sin(dst_angle) != 0],
+    a = np.piecewise(conf_x + np.sin(src_angle) + np.sin(dst_angle), [conf_x - np.sin(src_angle) + np.sin(dst_angle) == 0, conf_x - np.sin(src_angle) + np.sin(dst_angle) != 0],
                      [el_num_x,
                      lambda x: np.sin(el_num_x * el_dist_x * w_number * x / 2) / np.sin(el_dist_x * w_number * x / 2)])
     # np.sin(el_num_x * el_dist_x * w_number * (conf_x - np.sin(dst_angle) + np.sin(src_angle)) / 2) / np.sin(el_dist_x * w_number * (conf_x - np.sin(dst_angle) + np.sin(src_angle)) / 2)])
     return (np.abs(a) / el_num_x) ** 2
+
+
+def gen_array_factor(src_angle: float, dst_angle: float, conf_x: float,
+                     el_dist_x: float, el_num_x: int,
+                     central_frequency: float, num_resources: int, sub_spacing: float):
+    """ Compute the array factor (squared) given the environmental parameters
+
+    :param src_angle: the incidence angle created by the arriving LOS path (positive) [second quadrant]
+    :param dst_angle: the destination angle created by the arriving LOS path (positive) [first quadrant]
+    :param conf_x: configuration coefficient on the x-axis
+    :param el_dist_x: distance between elements, x-dimension
+    :param el_num_x: number of elements on the x-axis
+    :param central_frequency: initial frequency of operation [Hz]
+    :param num_resources: number of frequencies usable
+    :param sub_spacing: spacing between frequency resources [Hz]
+    """
+    constant_factor = el_dist_x * np.pi / c * central_frequency
+    f = np.arange(num_resources)
+    argument = conf_x + (1 + f * sub_spacing / central_frequency) * (np.sin(dst_angle) - np.sin(src_angle))
+    a = np.piecewise(argument, [argument == 0, argument != 0],
+                     [el_num_x,
+                     lambda x: np.sin(el_num_x * constant_factor * x) / np.sin(constant_factor * x)])
+    return (np.abs(a) / el_num_x) ** 2
+
+
+def qfunc(x):
+    return 0.5-0.5*special.erf(x / np.sqrt(2))
 
 
 def ff_dist(el_num_x, el_dist_x, w_length):
@@ -74,6 +102,10 @@ def ff_dist(el_num_x, el_dist_x, w_length):
 
 def degarcsin(x):
     return np.rad2deg(np.arcsin(x))
+
+
+def degarccos(x):
+    return np.rad2deg(np.arccos(x))
 
 
 # Deterministic parameters
@@ -154,7 +186,7 @@ if __name__ == "__main__":
     dst_angles = np.pi / 2 * np.array([1 / 6, 1 / 2, 5 / 6])
     phi = -np.sin(np.linspace(0, np.pi, samples)) + np.sin(src_ang)    # compensating the known angle
     # Nd_struct is a list of tuple. Each tuple contains N_x and d_x of the RIS
-    Nd_struct = [(8, wavelength), (16, wavelength)]
+    Nd_struct = [(8, wavelength), (16, wavelength), (32, wavelength / 2)]
 
     for iteration in Nd_struct:
         array = np.zeros((len(phi), len(dst_angles)))  # initialization
@@ -171,8 +203,6 @@ if __name__ == "__main__":
         HPBM_left = wavelength * a / N_x / d_x / np.pi - np.sin(dst_angles)
         HPBM_right = -wavelength * a / N_x / d_x / np.pi - np.sin(dst_angles)
 
-
-
         # Compute array factor
         for i in range(len(dst_angles)):
             array[:, i] = array_factor(src_ang, dst_angles[i], phi, d_x, N_x, wavelength)
@@ -181,7 +211,7 @@ if __name__ == "__main__":
         # Plotting
         _, ax = plt.subplots()
         for i in range(len(dst_angles)):
-            ax.plot(degarcsin(phi - np.sin(src_ang)), array[:, i], label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i]))}°', c=colors[i])
+            ax.plot(degarcsin(phi - np.sin(src_ang)), array[:, i], label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°', c=colors[i])
             plt.axvline(x=degarcsin(FNBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
             plt.axvline(x=degarcsin(FNBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
             plt.axvline(x=degarcsin(HPBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
@@ -203,28 +233,166 @@ if __name__ == "__main__":
 
         # Configurations check
         conf_num = int(np.ceil(N_x * d_x * np.pi / 2 / wavelength / a))
-        conf_val = wavelength * a / N_x / d_x / np.pi * np.arange(1, conf_num + 1)
+        conf_values = 1 - wavelength * a / N_x / d_x / np.pi * (2 * np.arange(1, conf_num + 1) - 1)
+        conf_HP_minus = np.arcsin(1 - wavelength * a / N_x / d_x / np.pi * (2 * np.arange(1, conf_num + 1)))
+        conf_HP_plus = np.arcsin(1 - wavelength * a / N_x / d_x / np.pi * (2 * np.arange(1, conf_num + 1) - 2))
+        conf_directions = degarcsin(conf_values)
         title = r'AF coverage compensating the source angle ' + title_values
 
-        # TODO: Generate users in random position and test that the probability of power lower than 0.5 having that number of configurations
-        af = np.zeros((len(conf_val), len(dst_angles)))
-        for i in range(len(dst_angles)):
-            af[:, i] = array_factor(src_ang, dst_angles[i], conf_val, d_x, N_x, wavelength)
+        # Configuration coverage
+        conf_tot = - conf_values + np.sin(src_ang)
+        af = np.zeros((len(dst_angles_full), len(conf_tot)))
+        for i in range(conf_num):
+            af[:, i] = array_factor(src_ang, dst_angles_full, conf_tot[i], d_x, N_x, wavelength)
 
         _, ax = plt.subplots()
-        for i in range(len(dst_angles)):
-            ax.plot(degarcsin(conf_val - np.sin(src_ang)), af[:, i],  label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i]))}°', c=colors[i])
+        for i in range(conf_num-1):
+            ax.plot(np.rad2deg(dst_angles_full), af[:, i],  label=r'$\theta_s$ =' + f'{np.around(conf_directions[i]):.0f}°')
         plt.ylabel(r'$\frac{|\mathcal{A}^{\mathrm{DL}}_k|^2}{N_x^2}$')
-        plt.xlabel(r'$\arcsin(\psi)$')
+        plt.xlabel(r'$\theta_k$')
         ax.grid()
-        ax.legend()
+        ax.legend(loc='right')
 
         if not render:
             plt.title(title)
             plt.show(block=False)
         else:
-            filename = os.path.join(output_dir, f'af_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
+            filename = os.path.join(output_dir, f'conf_coverage_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
             # tikzplotlib.save(filename + '.tex')
             plt.title(title)
             plt.savefig(filename + '.png', dpi=300)
             plt.close()
+
+        # Error mass probability
+        # Let us assume a user has position theta_k = theta_k_0 + error
+        ue_angle_0 = dst_angles_full
+        error_degree = 5
+        std_error = np.deg2rad(error_degree)       # 4 degree of error for the 95%
+        # Computing the mass probability for every configuration
+        ue_angle_0_mat = np.tile(ue_angle_0[np.newaxis], (conf_num, 1))
+        mass_probability = qfunc((conf_HP_minus[np.newaxis].T - ue_angle_0_mat) / std_error) - qfunc((conf_HP_plus[np.newaxis].T - ue_angle_0_mat) / std_error)
+        # Plotting probability for some determined angular positions dst_angles
+        width_tot = 0.4
+        width_each = width_tot / len(dst_angles)
+        xaxis = np.arange(0, conf_num)
+        xlabels = np.char.mod('%d', conf_directions)  # [str(i) for i in (xaxis + 1)]
+        threshold = 1e-1
+        _, ax = plt.subplots()
+        for i in range(len(dst_angles)):
+            closest_angle_idx = np.abs(dst_angles_full - dst_angles[i]).argmin()
+            bar = ax.bar(xaxis - i * width_each, mass_probability[:, closest_angle_idx], width_each,
+                         color=colors[i], label=r'$\theta_k^{(0)}$=' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°')
+            top_label_value = mass_probability[:, closest_angle_idx]
+            # bar_top_label = [f'{i:.2f}' if i > threshold else '' for i in top_label_value]
+            # ax.bar_label(bar, label=bar_top_label, frmpadding=3)
+        plt.ylabel(r'$p_k(s)$')
+        plt.xlabel(r'$\theta_s$')
+        ax.set_xticks(xaxis, xlabels)
+        ax.legend()
+        plt.grid(axis='y')
+        title = r'Mass probability having $\sigma =' + f'{error_degree}$° ' + title_values
+
+        if not render:
+            plt.title(title)
+            plt.show(block=False)
+        else:
+            filename = os.path.join(output_dir, f'mass_prob_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
+            # tikzplotlib.save(filename + '.tex')
+            plt.title(title)
+            plt.savefig(filename + '.png', dpi=300)
+            plt.close()
+
+        # Mass probability on the best configuration (to the right)
+        error_degree = np.linspace(0.5, 22.5, samples)
+        std_error = np.deg2rad(error_degree)
+        # Taking best configuration per angular position
+        _, ax = plt.subplots()
+        for i in range(len(dst_angles)):
+            best_conf_idx = np.abs(np.arcsin(conf_values) - dst_angles[i]).argmin()
+            mass_probability_nearest = qfunc((conf_HP_minus[best_conf_idx] - dst_angles[i]) / std_error) - qfunc((conf_HP_plus[best_conf_idx] - dst_angles[i]) / std_error)
+            ax.plot(error_degree, mass_probability_nearest, color=colors[i], label=r'$\theta_k^{(0)}$=' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°')
+        plt.ylabel(r'$p_k(s)$')
+        plt.xlabel(r'$\sigma$ (°)')
+        ax.legend()
+        plt.grid()
+        title = r'Best configuration vs error deviation ' + title_values
+
+        if not render:
+            plt.title(title)
+            plt.show(block=False)
+        else:
+            filename = os.path.join(output_dir, f'bestconf_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
+            # tikzplotlib.save(filename + '.tex')
+            plt.title(title)
+            plt.savefig(filename + '.png', dpi=300)
+            plt.close()
+
+        # Mass probability on the nearest configuration (to the right)
+        _, ax = plt.subplots()
+        for i in range(len(dst_angles)):
+            best_conf_idx = np.abs(np.arcsin(conf_values) - dst_angles[i]).argmin()
+            mass_probability_nearest = qfunc((conf_HP_minus[best_conf_idx + 1] - dst_angles[i]) / std_error) - qfunc((conf_HP_plus[best_conf_idx + 1] - dst_angles[i]) / std_error)
+            ax.plot(error_degree, mass_probability_nearest, color=colors[i], label=r'$\theta_k^{(0)}$=' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°')
+        plt.ylabel(r'$p_k(s)$')
+        plt.xlabel(r'$\sigma$ (°)')
+        ax.legend()
+        plt.grid()
+        title = r'Nearest configuration vs error deviation ' + title_values
+
+        if not render:
+            plt.title(title)
+            plt.show(block=False)
+        else:
+            filename = os.path.join(output_dir, f'nearestconf_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
+            # tikzplotlib.save(filename + '.tex')
+            plt.title(title)
+            plt.savefig(filename + '.png', dpi=300)
+            plt.close()
+
+        # Frequency selectivity and hopping
+        carrier_spacing = 300e3
+        F = 50000
+
+        # What happens to the second-best configuration (right)
+        array_frequency = np.zeros((F, len(dst_angles)))
+        _, ax = plt.subplots()
+        for i in range(len(dst_angles)):
+            best_conf_idx = abs(np.arcsin(conf_values) - dst_angles[i]).argmin()
+            # best
+            conf = - conf_values[best_conf_idx] + np.sin(src_ang)
+            array_frequency[:, i] = gen_array_factor(src_ang, dst_angles[i], conf, d_x, N_x, fc, F, carrier_spacing)
+            # plot
+            ax.plot(array_frequency[:, i], color=colors[i], label=r'$\theta_k^{(0)}$=' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°')
+            # second
+            conf = - conf_values[best_conf_idx + 1] + np.sin(src_ang)
+            array_frequency[:, i] = gen_array_factor(src_ang, dst_angles[i], conf, d_x, N_x, fc, F, carrier_spacing)
+            # plot
+            ax.plot(array_frequency[:, i], ls='--', color=colors[i], label='_nolabel_')
+            # third
+            conf = - conf_values[best_conf_idx + 2] + np.sin(src_ang)
+            array_frequency[:, i] = gen_array_factor(src_ang, dst_angles[i], conf, d_x, N_x, fc, F, carrier_spacing)
+            # plot
+            ax.plot(array_frequency[:, i], ls='--', color=colors[i], label='_nolabel_')
+            # forth
+            conf = - conf_values[best_conf_idx + 3] + np.sin(src_ang)
+            array_frequency[:, i] = gen_array_factor(src_ang, dst_angles[i], conf, d_x, N_x, fc, F, carrier_spacing)
+            # plot
+            ax.plot(array_frequency[:, i], ls='--', color=colors[i], label='_nolabel_')
+
+
+        plt.ylabel(r'$\frac{|\mathcal{A}^{\mathrm{DL}}_k|^2}{N_x^2}$')
+        plt.xlabel(r'$f$')
+        ax.legend()
+        plt.grid()
+        title = r'Frequency hopping ' + title_values
+
+        if not render:
+            plt.title(title)
+            plt.show(block=False)
+        else:
+            filename = os.path.join(output_dir, f'nearestconf_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
+            # tikzplotlib.save(filename + '.tex')
+            plt.title(title)
+            plt.savefig(filename + '.png', dpi=300)
+            plt.close()
+
