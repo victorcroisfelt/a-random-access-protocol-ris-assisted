@@ -62,7 +62,7 @@ def array_factor(src_angle: float, dst_angle: float, conf_x: float,
     :param w_length: wavelength of the central frequency
     """
     w_number = 2 * np.pi / w_length
-    a = np.piecewise(conf_x + np.sin(src_angle) + np.sin(dst_angle), [conf_x - np.sin(src_angle) + np.sin(dst_angle) == 0, conf_x - np.sin(src_angle) + np.sin(dst_angle) != 0],
+    a = np.piecewise(conf_x - np.sin(src_angle) + np.sin(dst_angle), [conf_x - np.sin(src_angle) + np.sin(dst_angle) == 0, conf_x - np.sin(src_angle) + np.sin(dst_angle) != 0],
                      [el_num_x,
                      lambda x: np.sin(el_num_x * el_dist_x * w_number * x / 2) / np.sin(el_dist_x * w_number * x / 2)])
     # np.sin(el_num_x * el_dist_x * w_number * (conf_x - np.sin(dst_angle) + np.sin(src_angle)) / 2) / np.sin(el_dist_x * w_number * (conf_x - np.sin(dst_angle) + np.sin(src_angle)) / 2)])
@@ -211,13 +211,13 @@ if __name__ == "__main__":
         # Plotting
         _, ax = plt.subplots()
         for i in range(len(dst_angles)):
-            ax.plot(degarcsin(phi - np.sin(src_ang)), array[:, i], label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°', c=colors[i])
-            plt.axvline(x=degarcsin(FNBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
-            plt.axvline(x=degarcsin(FNBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
-            plt.axvline(x=degarcsin(HPBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
-            plt.axvline(x=degarcsin(HPBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+            ax.plot(degarcsin(-(phi - np.sin(src_ang))), array[:, i], label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°', c=colors[i])
+            plt.axvline(x=degarcsin(-FNBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+            plt.axvline(x=degarcsin(-FNBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+            plt.axvline(x=degarcsin(-HPBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+            plt.axvline(x=degarcsin(-HPBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
         plt.ylabel(r'$\frac{|\mathcal{A}^{\mathrm{DL}}_k|^2}{N_x^2}$')
-        plt.xlabel(r'$\arcsin(\psi)$')
+        plt.xlabel(r'$\theta_s$')
         ax.grid()
         ax.legend()
 
@@ -247,7 +247,7 @@ if __name__ == "__main__":
 
         _, ax = plt.subplots()
         for i in range(conf_num-1):
-            ax.plot(np.rad2deg(dst_angles_full), af[:, i],  label=r'$\theta_s$ =' + f'{np.around(conf_directions[i]):.0f}°')
+            ax.plot(np.rad2deg(dst_angles_full), af[:, i],  label=r'$\theta_s\simeq' + f'{np.around(conf_directions[i]):.0f}$°')
         plt.ylabel(r'$\frac{|\mathcal{A}^{\mathrm{DL}}_k|^2}{N_x^2}$')
         plt.xlabel(r'$\theta_k$')
         ax.grid()
@@ -334,7 +334,7 @@ if __name__ == "__main__":
             mass_probability_nearest = qfunc((conf_HP_minus[best_conf_idx + 1] - dst_angles[i]) / std_error) - qfunc((conf_HP_plus[best_conf_idx + 1] - dst_angles[i]) / std_error)
             ax.plot(error_degree, mass_probability_nearest, color=colors[i], label=r'$\theta_k^{(0)}$=' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°')
         plt.ylabel(r'$p_k(s)$')
-        plt.xlabel(r'$\sigma$ (°)')
+        plt.xlabel(r'$\sigma$ [deg]')
         ax.legend()
         plt.grid()
         title = r'Nearest configuration vs error deviation ' + title_values
@@ -390,7 +390,7 @@ if __name__ == "__main__":
             plt.title(title)
             plt.show(block=False)
         else:
-            filename = os.path.join(output_dir, f'nearestconf_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
+            filename = os.path.join(output_dir, f'frequencyhop_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
             # tikzplotlib.save(filename + '.tex')
             plt.title(title)
             plt.savefig(filename + '.png', dpi=300)
