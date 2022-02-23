@@ -95,7 +95,7 @@ x_range = wavelengh * np.arange(-5, 5, 1e-4)
 # Simulation
 ########################################
 
-# Prepare to save simulation results
+# Prepare to save simulation figs
 phi_r_dl = np.zeros((x_range.size, configs.size))
 phi_r_ul = np.zeros((x_range.size, configs.size))
 

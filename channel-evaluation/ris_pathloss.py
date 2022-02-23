@@ -164,7 +164,7 @@ theta_obs = np.linspace(0, np.pi/2)
 # Simulation
 ########################################
 
-# Prepare to save simulation results
+# Prepare to save simulation figs
 beta_dl = np.zeros((configs.size, theta_obs.size))
 beta_ul = np.zeros((configs.size, theta_obs.size))
 
