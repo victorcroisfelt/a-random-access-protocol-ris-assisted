@@ -10,52 +10,15 @@ from matplotlib import rc
 from scipy.constants import speed_of_light
 
 
-def quant(x: np.ndarray, bits: int):
-    """
-    Quantize a signal x considering the given number of bits.
-
-    Parameters
-    ----------
-
-    x : array of floats
-        input signal
-
-    bits : integer
-        number of bits that defines the step size (resolution) of the
-        quantization process.
-
-    Returns
-    -------
-
-    yk : array of floats
-        quantized version of the input signal
-    """
-
-    # Obtain step size
-    Delta = (1 / 2) ** (bits - 1)
-
-    # Re-scale the signal
-    x_zeros = x * (1 - 1e-12)
-    x_scaled = x_zeros - Delta / 2
-
-    # Quantization stage
-    k = np.round(x / Delta) * Delta
-
-    # Reconstruction stage
-    yk = k + Delta / 2
-
-    return yk
-
-
 class Box:
-    """Creates an environment defined by a square box of UEs.
+    """Creates an environment defined by a box of UEs.
 
     Arguments:
-        square_length : float
-            Length of the box where the UEs are.
+        maximum_distance : float
+            Maximum distance of the UEs with respect to the RIS.
 
-        min_square_length : float
-            Distance between the x-axis and the lowest y-coordinate of the box.
+        minimum_distance : float
+            Minimum distance with respect to the RIS.
 
         carrier_frequency : float 
             Central frequency in Hertz.
@@ -67,24 +30,19 @@ class Box:
 
     def __init__(
             self,
-            square_length: float,
-            min_square_length: float,
+            maximum_distance: float,
+            minimum_distance: float,
             carrier_frequency: float = 3e9,
             bandwidth: float = 180e3,
             rng: np.random.RandomState = None
     ):
 
-        if (square_length < min_square_length) or (min_square_length <= 0) or (square_length <= 0):
-            raise ValueError('Invalid definition of the box concerning its length.')
+        # if (square_length < min_square_length) or (min_square_length <= 0) or (square_length <= 0):
+        #     raise ValueError('Invalid definition of the box concerning its length.')
 
         # Physical attributes of the box
-        # self.pos = np.sqrt(2) * (ell0 + ell / 2) * np.array([1, 1])  # center coordinates (I don't know if useful)
-        self.square_length = square_length
-        self.min_square_length = min_square_length
-
-        # # Propagation environment
-        # self.pl_exp = pl_exp
-        # self.sh_std = sh_std
+        self.maximum_distance = maximum_distance
+        self.minimum_distance = minimum_distance
 
         # Bandwidth available
         self.fc = carrier_frequency
@@ -156,20 +114,27 @@ class Box:
            Maximum power available at each UE.
         """
         # Control on input
-        if not isinstance(n, int) or (n <= 0):  # Cannot add a negative number od nodes
+        if not isinstance(n, int) or (n <= 0):  # Cannot add a negative number of nodes
             raise ValueError('n must be int >= 0.')
 
-        # Drop UEs, pos is a ndarray of shape (K, 3)
+        # Compute distances
+        distances = np.sqrt(self.rng.rand(n) * (self.maximum_distance**2 - self.minimum_distance**2) + self.minimum_distance**2)
+
+        # Compute angles
+        angles = np.pi/2 * self.rng.rand(n)
+
+        # Compute pos
         pos = np.zeros((n, 3))
-        pos[:, :-1] = self.square_length * self.rng.rand(n, 2) + self.min_square_length
+        pos[:, 0] = distances * np.sin(angles)
+        pos[:, 1] = distances * np.cos(angles)
 
         # Append UEs
         self.ue = UE(n, pos, gain, max_pow)
 
     def place_ris(self,
                   pos: np.ndarray = None,
-                  num_els_v: int = None,
-                  num_els_h: int = None,
+                  num_els_z: int = None,
+                  num_els_x: int = None,
                   size_el: float = None,
                   num_configs: int = None
                   ):
@@ -181,52 +146,63 @@ class Box:
         pos : ndarray of shape (3,)
             Position of the RIS in rectangular coordinates.
 
-        num_els_v : int
-            Number of elements in the vertical dimension.
+        num_els_z : int
+            Number of elements along z-axis.
 
-        num_els_h : int
-            Number of elements in the horizontal dimension.
+        num_els_x : int
+            Number of elements along x-axis.
 
         size_el : float
-            Size of each element. Default: wavelength/4
+            Size of each element. Default: wavelength
 
         num_configs : int
             Number of configurations.
         """
 
         # Append RIS
-        self.ris = RIS(pos=pos, num_els_v=num_els_v,  wavelength=self.wavelength, size_el=size_el,  num_els_h=num_els_h,
-                       num_configs=num_configs)
+        self.ris = RIS(
+            pos=pos,
+            num_els_z=num_els_z,
+            num_els_x=num_els_x,
+            wavelength=self.wavelength,
+            size_el=size_el,
+            num_configs=num_configs
+        )
 
     def get_channel_model(self):
         """Get Downlink (DL) and Uplink (UL) channel gain.
 
         Returns
         -------
-        channel_gains_dl : ndarray of shape (num_ues, )
-            Downlink channel gain between the BS and each UE for each RIS element and K UEs.
+        channel_gains_dl : ndarray of shape (num_configs, num_ues)
+            Downlink channel gain between the BS and each UE for each RIS configuration.
 
-        channel_gains_ul : ndarray of shape (num_ues, )
-            Uplink channel gain between the BS and each UE for each RIS element and K UEs.
+        channel_gains_ul : ndarray of shape (num_configs, num_ues)
+            Uplink channel gain between the BS and each UE for each RIS configuration.
 
         """
         # Compute DL pathloss component of shape (num_ues, )
-        num = self.bs.gain * self.ue.gain * self.ris.area**2
-        den = (4 * np.pi * self.ris.num_els * self.bs.distance * self.ue.distances)**2
+        num = self.bs.gain * self.ue.gain * self.ris.size_el**2
+        den = (4 * np.pi * self.bs.distance * self.ue.distances)**2
 
-        pathloss_dl = num / den * np.cos(self.bs.angle)**2
+        pathloss_dl = (num / den) * np.cos(self.bs.angle)**2
 
         # Compute UL pathloss component of shape (num_ues, )
-        pathloss_ul = num / den * np.cos(self.ue.angles)**2
+        pathloss_ul = (num / den) * np.cos(self.ue.angles)**2
 
         # Compute constant phase component of shape (num_ues, )
-        phi = - self.wavenumber * (self.bs.distance + self.ue.distances) - (np.sin(self.bs.angle) - np.sin(self.ue.angles)) * (self.ris.num_els_h + 1) / 2 * self.ris.size_el
+        distances_sum = (self.bs.distance + self.ue.distances)
+        disagreement = (np.sin(self.bs.angle) - np.sin(self.ue.angles)) * ((self.ris.num_els_x + 1) / 2) * self.ris.size_el
+
+        phi = - self.wavenumber * (distances_sum - disagreement)
 
         # Compute array factor of shape (num_configs, num_ues)
-        enumeration_num_els_h = np.arange(1, self.ris.num_els_h + 1)
-        argument = self.wavenumber * (np.sin(self.ue.angles[np.newaxis, :, np.newaxis]) - np.sin(self.ris.configs[:, np.newaxis, np.newaxis])) * enumeration_num_els_h[np.newaxis, np.newaxis, :] *  self.ris.size_el
+        enumeration_num_els_x = np.arange(1, self.ris.num_els_x + 1)
+        sine_differences = (np.sin(self.ue.angles[np.newaxis, :, np.newaxis]) - np.sin(self.ris.configs[:, np.newaxis, np.newaxis]))
 
-        array_factor_dl = self.ris.num_els_v * np.sum(np.exp(+1j * argument), axis=-1)
+        argument = self.wavenumber * sine_differences * enumeration_num_els_x[np.newaxis, np.newaxis, :] * self.ris.size_el
+
+        array_factor_dl = self.ris.num_els_z * np.sum(np.exp(+1j * argument), axis=-1)
         array_factor_ul = array_factor_dl.conj()
 
         # Compute channel gains of shape (num_configs, num_ues)
@@ -240,11 +216,11 @@ class Box:
 
         Returns
         -------
-        channel_gains_dl : ndarray of shape (num_ues, )
-            Downlink channel gain between the BS and each UE for each RIS element and K UEs.
+        channel_gains_dl : ndarray of shape (1, num_ues)
+            Downlink channel gain between the BS and each UE.
 
-        channel_gains_ul : ndarray of shape (num_ues, )
-            Uplink channel gain between the BS and each UE for each RIS element and K UEs.
+        channel_gains_ul : ndarray of shape (1, num_ues)
+            Uplink channel gain between the BS and each UE.
 
         """
         # Compute DL pathloss component of shape (num_ues, )

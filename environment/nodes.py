@@ -112,7 +112,7 @@ class UE(Node):
         if gain is None:
             gain = 10**(5/10)
         if max_pow is None:
-            max_pow = 100  # [mW]
+            max_pow = 10  # [mW]
 
         # Init parent class
         super().__init__(n, pos, gain, max_pow)
@@ -132,11 +132,11 @@ class RIS(Node):
         pos : ndarray of shape (3,)
             Position of the RIS in rectangular coordinates.
 
-        num_els_v : int
-            Number of elements in the vertical dimension.
+        num_els_z : int
+            Number of elements along z-axis.
 
-        num_els_h : int
-            Number of elements in the horizontal dimension.
+        num_els_x : int
+            Number of elements along x-axis.
 
         wavelength : float
             Wavelength in meters. Default: assume carrier frequency of 3 GHz.
@@ -152,8 +152,8 @@ class RIS(Node):
             self,
             n: int = None,
             pos: np.ndarray = None,
-            num_els_v: int = None,
-            num_els_h: int = None,
+            num_els_z: int = None,
+            num_els_x: int = None,
             wavelength: float = None,
             size_el: float = None,
             num_configs: int = None,
@@ -164,15 +164,15 @@ class RIS(Node):
             n = 1
         if pos is None:
             pos = np.array([0, 0, 0])
-        if num_els_v is None:
-            num_els_v = 4
-        if num_els_h is None:
-            num_els_h = 4
+        if num_els_z is None:
+            num_els_z = 10
+        if num_els_x is None:
+            num_els_x = 10
         if wavelength is None:
             carrier_frequency = 3e9
             wavelength = speed_of_light / carrier_frequency
         if size_el is None:
-            size_el = wavelength/4
+            size_el = wavelength
         if num_configs is None:
             num_configs = 4
 
@@ -184,23 +184,23 @@ class RIS(Node):
         # In this way every ris instantiated is equal to the others
 
         # Instance variables
-        self.num_els_v = num_els_v  # vertical number of elements
-        self.num_els_h = num_els_h  # horizontal number of elements
-        self.num_els = num_els_v * num_els_h  # total number of elements
+        self.num_els_z = num_els_z  # vertical number of elements
+        self.num_els_x = num_els_x  # horizontal number of elements
+        self.num_els = num_els_z * num_els_x  # total number of elements
         self.size_el = wavelength
         self.num_configs = num_configs  # number of configurations
 
-        # Store index of elements considering total number
-        self.els_range = np.arange(self.num_els)
+        # # Store index of elements considering total number
+        # self.els_range = np.arange(self.num_els)
 
         # Compute RIS sizes
-        self.size_v = num_els_v * self.size_el  # vertical size [m]
-        self.size_h = num_els_h * self.size_el  # horizontal size [m]
-        self.area = self.size_v * self.size_h   # area [m^2]
+        self.size_z = num_els_z * self.size_el  # vertical size [m]
+        self.size_x = num_els_x * self.size_el  # horizontal size [m]
+        self.area = self.size_z * self.size_x   # area [m^2]
 
-        # Organizing elements over the RIS
-        self.id_els = self.indexing_els()
-        self.pos_els = self.positioning_els()
+        # # Organizing elements over the RIS
+        # self.id_els = self.indexing_els()
+        # self.pos_els = self.positioning_els()
 
         # Configure RIS
         self.angular_resolution = None
@@ -208,98 +208,6 @@ class RIS(Node):
 
         self.configs = None
         self.set_configurations()
-
-    def indexing_els(self):
-        """Define an array of tuples where each entry represents the ID of an element.
-
-        Returns
-        -------
-        id_els : ndarray of tuples of shape (self.num_els)
-            Each ndarray entry has a tuple (id_v, id_h), which indexes the elements arranged in a planar array. Vertical
-            index is given as id_v, while horizontal index is id_h.
-
-        Example
-        -------
-        For a num_els_v = 3 x num_els_h = 3 RIS, the elements are indexed as follows:
-
-                                                (2,0) -- (2,1) -- (2,2)
-                                                (1,0) -- (1,1) -- (1,2)
-                                                (0,0) -- (0,1) -- (0,2),
-
-        the corresponding id_els should contain:
-
-                        id_els = [(0,0), (0,1), (0,2), (1,0), (1,1), (1,2), (2,0), (2,1), (2,2)].
-
-        While the respective enumeration of the elements is:
-
-                                                    6 -- 7 -- 8
-                                                    3 -- 4 -- 5
-                                                    0 -- 1 -- 2,
-
-        the enumeration is stored at:
-
-                                            self.els_range = np.arange(num_els).
-
-        Therefore, id_els and self.els_range are two different index methods for the elements. The former is used to
-        characterize the geometrical features of each element, while the latter is used for storage purposes.
-        """
-        # Get vertical ids
-        id_v = self.els_range // self.num_els_v
-
-        # Get horizontal ids
-        id_h = np.mod(self.els_range, self.num_els_h)
-
-        # Get array of tuples with complete id
-        id_els = [(id_v[el], id_h[el]) for el in self.els_range]
-
-        return id_els
-
-    def positioning_els(self):
-        """Compute position of each element in the planar array.
-
-        Returns
-        -------
-
-        """
-        # Compute offsets
-        offset_x = (self.num_els_h - 1) * self.size_el / 2
-        offset_z = (self.num_els_v - 1) * self.size_el / 2
-
-        # Prepare to store the 3D position vector of each element
-        pos_els = np.zeros((self.num_els, 3))
-
-        # Go through all elements
-        for el in self.els_range:
-            pos_els[el, 0] = (self.id_els[el][1] * self.size_el) - offset_x
-            pos_els[el, 2] = (self.id_els[el][0] * self.size_el) - offset_z
-
-        return pos_els
-
-    def plot(self):
-        """Plot RIS along with the index of each element.
-
-        Returns
-        -------
-        None.
-
-        """
-        fig, ax = plt.subplots()
-
-        # Go through all elements
-        for el in self.els_range:
-            ax.plot(self.pos_els[el, 0], self.pos_els[el, 2], 'x', color='black')
-            ax.text(self.pos_els[el, 0] - 0.003, self.pos_els[el, 2] - 0.0075, str(self.id_els[el]))
-
-        # Plot origin
-        ax.plot(0, 0, '.', color='black')
-
-        ax.set_xlim([np.min(self.pos_els[:, 0]) - 0.05, np.max(self.pos_els[:, 0]) + 0.05])
-        ax.set_ylim([np.min(self.pos_els[:, 2]) - 0.05, np.max(self.pos_els[:, 2]) + 0.05])
-
-        ax.set_xlabel("x [m]")
-        ax.set_ylabel("z [m]")
-
-        plt.show()
 
     def set_angular_resolution(self):
         """Set RIS angular resolution. The observation space is ever considered to be 0 to pi/2 (half-plane) given our
@@ -316,7 +224,7 @@ class RIS(Node):
         For num_configs = 4, angular_resolution evaluates to pi/8.
 
         """
-        self.angular_resolution = (np.pi / 2 - 0) / self.num_configs
+        self.angular_resolution = ((np.pi / 2) - 0) / self.num_configs
 
     def set_configurations(self):
         """Set configurations offered by the RIS.
@@ -343,6 +251,99 @@ class RIS(Node):
 
     def __repr__(self):
         return f'RIS-{self.n}'
+
+
+    # def indexing_els(self):
+    #     """Define an array of tuples where each entry represents the ID of an element.
+    #
+    #     Returns
+    #     -------
+    #     id_els : ndarray of tuples of shape (self.num_els)
+    #         Each ndarray entry has a tuple (id_v, id_h), which indexes the elements arranged in a planar array. Vertical
+    #         index is given as id_v, while horizontal index is id_h.
+    #
+    #     Example
+    #     -------
+    #     For a num_els_v = 3 x num_els_h = 3 RIS, the elements are indexed as follows:
+    #
+    #                                             (2,0) -- (2,1) -- (2,2)
+    #                                             (1,0) -- (1,1) -- (1,2)
+    #                                             (0,0) -- (0,1) -- (0,2),
+    #
+    #     the corresponding id_els should contain:
+    #
+    #                     id_els = [(0,0), (0,1), (0,2), (1,0), (1,1), (1,2), (2,0), (2,1), (2,2)].
+    #
+    #     While the respective enumeration of the elements is:
+    #
+    #                                                 6 -- 7 -- 8
+    #                                                 3 -- 4 -- 5
+    #                                                 0 -- 1 -- 2,
+    #
+    #     the enumeration is stored at:
+    #
+    #                                         self.els_range = np.arange(num_els).
+    #
+    #     Therefore, id_els and self.els_range are two different index methods for the elements. The former is used to
+    #     characterize the geometrical features of each element, while the latter is used for storage purposes.
+    #     """
+    #     # Get vertical ids
+    #     id_v = self.els_range // self.num_els_v
+    #
+    #     # Get horizontal ids
+    #     id_h = np.mod(self.els_range, self.num_els_h)
+    #
+    #     # Get array of tuples with complete id
+    #     id_els = [(id_v[el], id_h[el]) for el in self.els_range]
+    #
+    #     return id_els
+    #
+    # def positioning_els(self):
+    #     """Compute position of each element in the planar array.
+    #
+    #     Returns
+    #     -------
+    #
+    #     """
+    #     # Compute offsets
+    #     offset_x = (self.num_els_h - 1) * self.size_el / 2
+    #     offset_z = (self.num_els_v - 1) * self.size_el / 2
+    #
+    #     # Prepare to store the 3D position vector of each element
+    #     pos_els = np.zeros((self.num_els, 3))
+    #
+    #     # Go through all elements
+    #     for el in self.els_range:
+    #         pos_els[el, 0] = (self.id_els[el][1] * self.size_el) - offset_x
+    #         pos_els[el, 2] = (self.id_els[el][0] * self.size_el) - offset_z
+    #
+    #     return pos_els
+    #
+    # def plot(self):
+    #     """Plot RIS along with the index of each element.
+    #
+    #     Returns
+    #     -------
+    #     None.
+    #
+    #     """
+    #     fig, ax = plt.subplots()
+    #
+    #     # Go through all elements
+    #     for el in self.els_range:
+    #         ax.plot(self.pos_els[el, 0], self.pos_els[el, 2], 'x', color='black')
+    #         ax.text(self.pos_els[el, 0] - 0.003, self.pos_els[el, 2] - 0.0075, str(self.id_els[el]))
+    #
+    #     # Plot origin
+    #     ax.plot(0, 0, '.', color='black')
+    #
+    #     ax.set_xlim([np.min(self.pos_els[:, 0]) - 0.05, np.max(self.pos_els[:, 0]) + 0.05])
+    #     ax.set_ylim([np.min(self.pos_els[:, 2]) - 0.05, np.max(self.pos_els[:, 2]) + 0.05])
+    #
+    #     ax.set_xlabel("x [m]")
+    #     ax.set_ylabel("z [m]")
+    #
+    #     plt.show()
 
 # class RxNoise:
 #     """Represent the noise value at the physical receiver
