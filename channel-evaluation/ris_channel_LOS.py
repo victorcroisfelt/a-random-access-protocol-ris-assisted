@@ -186,7 +186,7 @@ if __name__ == "__main__":
     dst_angles = np.pi / 2 * np.array([1 / 6, 1 / 2, 5 / 6])
     phi = -np.sin(np.linspace(0, np.pi, samples)) + np.sin(src_ang)    # compensating the known angle
     # Nd_struct is a list of tuple. Each tuple contains N_x and d_x of the RIS
-    Nd_struct = [(8, wavelength), (10, wavelength), (16, wavelength)]
+    Nd_struct = [(8, wavelength), (16, wavelength), (32, wavelength / 2)]
 
     for iteration in Nd_struct:
         array = np.zeros((len(phi), len(dst_angles)))  # initialization
@@ -211,13 +211,13 @@ if __name__ == "__main__":
         # Plotting
         _, ax = plt.subplots()
         for i in range(len(dst_angles)):
-            ax.plot(degarcsin(phi - np.sin(src_ang)), array[:, i], label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°', c=colors[i])
-            plt.axvline(x=degarcsin(FNBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
-            plt.axvline(x=degarcsin(FNBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
-            plt.axvline(x=degarcsin(HPBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
-            plt.axvline(x=degarcsin(HPBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
-        plt.ylabel(r'$\frac{|\mathcal{A}_k|^2}{N_x^2}$')
-        plt.xlabel(r'$\arcsin(\psi)$')
+            ax.plot(degarcsin(-(phi - np.sin(src_ang))), array[:, i], label=r'$\theta_k$ =' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°', c=colors[i])
+            plt.axvline(x=degarcsin(-FNBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+            plt.axvline(x=degarcsin(-FNBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+            plt.axvline(x=degarcsin(-HPBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+            plt.axvline(x=degarcsin(-HPBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
+        plt.ylabel(r'$\frac{|\mathcal{A}^{\mathrm{DL}}_k|^2}{N_x^2}$')
+        plt.xlabel(r'$\theta_s$')
         ax.grid()
         ax.legend()
 
@@ -334,7 +334,7 @@ if __name__ == "__main__":
             mass_probability_nearest = qfunc((conf_HP_minus[best_conf_idx + 1] - dst_angles[i]) / std_error) - qfunc((conf_HP_plus[best_conf_idx + 1] - dst_angles[i]) / std_error)
             ax.plot(error_degree, mass_probability_nearest, color=colors[i], label=r'$\theta_k^{(0)}$=' + f'{np.around(np.rad2deg(dst_angles[i])):.0f}°')
         plt.ylabel(r'$p_k(s)$')
-        plt.xlabel(r'$\sigma$ (°)')
+        plt.xlabel(r'$\sigma$ [deg]')
         ax.legend()
         plt.grid()
         title = r'Nearest configuration vs error deviation ' + title_values
@@ -390,7 +390,7 @@ if __name__ == "__main__":
             plt.title(title)
             plt.show(block=False)
         else:
-            filename = os.path.join(output_dir, f'nearestconf_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
+            filename = os.path.join(output_dir, f'frequencyhop_N{N_x}_lamVSd{np.around(wavelength / d_x):.0f}')
             # tikzplotlib.save(filename + '.tex')
             plt.title(title)
             plt.savefig(filename + '.png', dpi=300)
