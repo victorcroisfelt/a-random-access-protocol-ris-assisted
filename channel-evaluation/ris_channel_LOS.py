@@ -62,7 +62,7 @@ def array_factor(src_angle: float, dst_angle: float, conf_x: float,
     :param w_length: wavelength of the central frequency
     """
     w_number = 2 * np.pi / w_length
-    a = np.piecewise(conf_x + np.sin(src_angle) + np.sin(dst_angle), [conf_x - np.sin(src_angle) + np.sin(dst_angle) == 0, conf_x - np.sin(src_angle) + np.sin(dst_angle) != 0],
+    a = np.piecewise(conf_x - np.sin(src_angle) + np.sin(dst_angle), [conf_x - np.sin(src_angle) + np.sin(dst_angle) == 0, conf_x - np.sin(src_angle) + np.sin(dst_angle) != 0],
                      [el_num_x,
                      lambda x: np.sin(el_num_x * el_dist_x * w_number * x / 2) / np.sin(el_dist_x * w_number * x / 2)])
     # np.sin(el_num_x * el_dist_x * w_number * (conf_x - np.sin(dst_angle) + np.sin(src_angle)) / 2) / np.sin(el_dist_x * w_number * (conf_x - np.sin(dst_angle) + np.sin(src_angle)) / 2)])
@@ -186,7 +186,7 @@ if __name__ == "__main__":
     dst_angles = np.pi / 2 * np.array([1 / 6, 1 / 2, 5 / 6])
     phi = -np.sin(np.linspace(0, np.pi, samples)) + np.sin(src_ang)    # compensating the known angle
     # Nd_struct is a list of tuple. Each tuple contains N_x and d_x of the RIS
-    Nd_struct = [(8, wavelength), (16, wavelength), (32, wavelength / 2)]
+    Nd_struct = [(8, wavelength), (10, wavelength), (16, wavelength)]
 
     for iteration in Nd_struct:
         array = np.zeros((len(phi), len(dst_angles)))  # initialization
@@ -216,7 +216,7 @@ if __name__ == "__main__":
             plt.axvline(x=degarcsin(FNBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
             plt.axvline(x=degarcsin(HPBM_right[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
             plt.axvline(x=degarcsin(HPBM_left[i]), ymin=0, ymax=N_x, lw=0.7, ls=':', c=colors[i])
-        plt.ylabel(r'$\frac{|\mathcal{A}^{\mathrm{DL}}_k|^2}{N_x^2}$')
+        plt.ylabel(r'$\frac{|\mathcal{A}_k|^2}{N_x^2}$')
         plt.xlabel(r'$\arcsin(\psi)$')
         ax.grid()
         ax.legend()
@@ -246,9 +246,9 @@ if __name__ == "__main__":
             af[:, i] = array_factor(src_ang, dst_angles_full, conf_tot[i], d_x, N_x, wavelength)
 
         _, ax = plt.subplots()
-        for i in range(conf_num-1):
+        for i in range(conf_num - 1):
             ax.plot(np.rad2deg(dst_angles_full), af[:, i],  label=r'$\theta_s$ =' + f'{np.around(conf_directions[i]):.0f}°')
-        plt.ylabel(r'$\frac{|\mathcal{A}^{\mathrm{DL}}_k|^2}{N_x^2}$')
+        plt.ylabel(r'$\frac{|\mathcal{A}_k|^2}{N_x^2}$')
         plt.xlabel(r'$\theta_k$')
         ax.grid()
         ax.legend(loc='right')
@@ -380,7 +380,7 @@ if __name__ == "__main__":
             ax.plot(array_frequency[:, i], ls='--', color=colors[i], label='_nolabel_')
 
 
-        plt.ylabel(r'$\frac{|\mathcal{A}^{\mathrm{DL}}_k|^2}{N_x^2}$')
+        plt.ylabel(r'$\frac{|\mathcal{A}_k|^2}{N_x^2}$')
         plt.xlabel(r'$f$')
         ax.legend()
         plt.grid()
