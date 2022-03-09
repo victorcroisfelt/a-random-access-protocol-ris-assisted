@@ -125,7 +125,7 @@ rng = np.random.default_rng(seed)
 samples = int(10000)
 
 # Standard output for rendering
-output_dir = os.path.join(os.path.expanduser('~'), 'uni/plots/ris', str(date.today()))
+output_dir = os.path.join(os.path.expanduser('~'), 'OneDrive/RIS/plots', str(date.today()))
 
 if __name__ == "__main__":
     render = command_parser()[0]
