@@ -18,13 +18,13 @@ def collision_resolution(ue_choices, buffered_access_attempts, gamma_th):
             values:
 
                 RIS-assisted protocol:
-                    Contains a list with the configurations chosen by each active UE.
+                    Contains a list with the access frames (configurations) chosen by each active UE.
 
                 Slotted ALOHA protocol:
-                    Contains a list with the packets chosen by each active UE.
+                    Contains a list with the access frames chosen by each active UE.
 
     buffered_access_attempts : ndarray of shape (num_access_frames)
-        Buffered UL received signals in each access attempt.
+        Buffered UL received signal in each access attempt.
 
     gamma_th : float
         Threshold SNR for SIC.
@@ -53,7 +53,7 @@ def collision_resolution(ue_choices, buffered_access_attempts, gamma_th):
     # Enumerate UEs
     enumeration_active_ues = np.arange(0, num_active_ues).astype(int)
 
-    # Enumerate Access frames
+    # Enumerate access frames
     enumeration_access_frames = [str('A') + str(access_frame) for access_frame in range(num_access_frames)]
 
     # Create edge list: each edge is a tuple
@@ -112,18 +112,18 @@ def collision_resolution(ue_choices, buffered_access_attempts, gamma_th):
         # Check SIC condition
         if buffered_snr > gamma_th:
 
-            # Update number of success access attempts
+            # Update number of successful access attempts
             num_successful_attempts += 1
 
-            # Identify other edges with respective UE
+            # Identify other edges with dagger UE
             edge_list_ue_dagger = [(ue, aa) for ue, aa in B.edges if ue == ue_dagger]
 
-            # Go through buffered signals that contain the UE and update them
+            # Go through buffered signals that contain the dagger UE and update them
             for edge in edge_list_ue_dagger:
 
                 if edge != (ue_dagger, access_frame_str_dagger):
 
-                    # Other access frame
+                    # Other access frame indexes
                     other_access_frame_str = edge[1]
                     other_access_frame = int(other_access_frame_str[1:])
 
