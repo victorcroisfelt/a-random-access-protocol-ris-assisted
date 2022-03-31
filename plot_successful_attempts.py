@@ -6,7 +6,7 @@ from matplotlib import rc
 ########################################
 # Loading
 ########################################
-
+#trial
 # Load data
 aloha_data = np.load('data/aloha.npz')
 strongest_data = np.load('data/ris_strongest_N100.npz')
