@@ -24,7 +24,7 @@ We use the access policies as described in the journal paper version of the abov
 
 Croisfelt, V., Saggese, F., Leyva-Mayorga, I., Kotaba, R., Gradoni, G., and Popovski, P., [“Random Access Protocol with Channel Oracle Enabled by a Reconfigurable Intelligent Surface”](https://arxiv.org/abs/2210.04230), <i>arXiv e-prints</i>, 2022.
 
-The reason is that the descriptions are more accurate in terms of ensuring the mutual statistical independence when selecting the access slots. By tossing a coin multiple times, the tossing comes independent of the realization of the previous event, giving a higher probability to the first access slots. 
+The reason is that the descriptions are more accurate in terms of ensuring the mutual statistical independence when selecting the access slots. By tossing a coin multiple times, the tossing comes dependent of the realization of the previous event, giving a higher probability to the first access slots. 
 
 ## Citing this Repository and License
 This code is subject to the MIT license. If you use any part of this repository for research, please consider to cite our aforementioned work.
