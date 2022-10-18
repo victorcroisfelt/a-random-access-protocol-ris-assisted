@@ -20,5 +20,10 @@ The codes provided here can be used to simulate Fig. 2 of the paper. The code is
 
 Further details about each file can be found inside them.
 
+## Comment
+We use the access policies as described in the journal paper version of the above conference paper:
+
+Croisfelt, V., Saggese, F., Leyva-Mayorga, I., Kotaba, R., Gradoni, G., and Popovski, P., [“Random Access Protocol with Channel Oracle Enabled by a Reconfigurable Intelligent Surface”](https://arxiv.org/abs/2210.04230), <i>arXiv e-prints</i>, 2022.
+
 ## Citing this Repository and License
 This code is subject to the MIT license. If you use any part of this repository for research, please consider to cite our aforementioned work.
