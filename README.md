@@ -42,4 +42,5 @@ This code is subject to the MIT license. If you use any part of this repository 
   number={},
   pages={1-5},
   keywords={Training;Wireless communication;Access protocols;Reconfigurable intelligent surfaces;Signal processing;Throughput;Reflection;Reconfigurable intelligent surface (RIS);random access},
-  doi={10.1109/SPAWC51304.2022.9833984}}
+  doi={10.1109/SPAWC51304.2022.9833984}
+}
