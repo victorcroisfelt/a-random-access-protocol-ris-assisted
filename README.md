@@ -26,8 +26,20 @@ Croisfelt, V., Saggese, F., Leyva-Mayorga, I., Kotaba, R., Gradoni, G., and Popo
 
 The reason is that the descriptions are more accurate in ensuring mutual statistical independence when selecting the access slots. Tossing a coin multiple times depends on the realization of the previous event, giving a higher probability to the first access slots. 
 
+## Acknowledgement
+This work was supported by the Villum Investigator Grant “WATER” from the Villum Fonden, Denmark.
+
 ## Citing this Repository and License
 This code is subject to the MIT license. If you use any part of this repository for research, please consider citing our aforementioned work.
 
-## Acknowledgement
-This work was supported by the Villum Investigator Grant “WATER” from the Villum Fonden, Denmark.
+```bibtex
+@INPROCEEDINGS{9833984,
+  author={Croisfelt, Victor and Saggese, Fabio and Leyva-Mayorga, Israel and Kotaba, Radosław and Gradoni, Gabriele and Popovski, Petar},
+  booktitle={2022 IEEE 23rd International Workshop on Signal Processing Advances in Wireless Communication (SPAWC)}, 
+  title={A Random Access Protocol for RIS-Aided Wireless Communications}, 
+  year={2022},
+  volume={},
+  number={},
+  pages={1-5},
+  keywords={Training;Wireless communication;Access protocols;Reconfigurable intelligent surfaces;Signal processing;Throughput;Reflection;Reconfigurable intelligent surface (RIS);random access},
+  doi={10.1109/SPAWC51304.2022.9833984}}
