@@ -26,9 +26,6 @@ Croisfelt, V., Saggese, F., Leyva-Mayorga, I., Kotaba, R., Gradoni, G., and Popo
 
 The reason is that the descriptions are more accurate in ensuring mutual statistical independence when selecting the access slots. Tossing a coin multiple times depends on the realization of the previous event, giving a higher probability to the first access slots. 
 
-## Acknowledgement
-This work was supported by the Villum Investigator Grant “WATER” from the Villum Fonden, Denmark.
-
 ## Citing this Repository and License
 This code is subject to the MIT license. If you use any part of this repository for research, please consider citing our aforementioned work.
 
@@ -44,3 +41,9 @@ This code is subject to the MIT license. If you use any part of this repository 
   keywords={Training;Wireless communication;Access protocols;Reconfigurable intelligent surfaces;Signal processing;Throughput;Reflection;Reconfigurable intelligent surface (RIS);random access},
   doi={10.1109/SPAWC51304.2022.9833984}
 }
+```
+
+## Acknowledgement
+This work was supported by the Villum Investigator Grant “WATER” from the Villum Fonden, Denmark.
+
+
