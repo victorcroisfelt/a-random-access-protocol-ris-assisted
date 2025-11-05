@@ -8,9 +8,9 @@ This is a research-oriented code package that is primarily intended to allow rea
 
 V. Croisfelt, F. Saggese, I. Leyva-Mayorga, R. Kotaba, G. Gradoni, and P. Popovski, ["A Random Access Protocol for RIS-Aided Wireless Communications,"](https://ieeexplore.ieee.org/document/9833984) 2022 IEEE 23rd International Workshop on Signal Processing Advances in Wireless Communication (SPAWC), 2022, pp. 1-5, doi: 10.1109/SPAWC51304.2022.9833984.
 
-A pre-print version is available on https://arxiv.org/abs/2203.03377, which has content different from the published one.
+A pre-print version is available on https://arxiv.org/abs/2203.03377.
 
-I hope this content helps in your research and contributes to building the precepts behind open science. Remarkably, to boost the idea of open science and further drive the evolution of science, I also motivate you to share your published results with the public.
+We hope this content helps in your research and contributes to building the precepts behind open science. Remarkably, to boost the idea of open science and further drive the evolution of science, we also motivate you to share your published results with the public.
 
 If you have any questions or if you have encountered any inconsistency, please do not hesitate to contact me via vcr@es.aau.dk.
 
