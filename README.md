@@ -3,6 +3,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2506.23118-b31b1b.svg)](https://arxiv.org/abs/2404.14236)
 [![DOI](https://img.shields.io/badge/DOI-10.1109/SPAWC51304.2022.9833984-blue.svg)](https://doi.org/10.1109/SPAWC51304.2022.9833984)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 This is a research-oriented code package that is primarily intended to allow readers to replicate the results of the article mentioned below and also encourage and accelerate further research on this topic:
 
 V. Croisfelt, F. Saggese, I. Leyva-Mayorga, R. Kotaba, G. Gradoni, and P. Popovski, ["A Random Access Protocol for RIS-Aided Wireless Communications,"](https://ieeexplore.ieee.org/document/9833984) 2022 IEEE 23rd International Workshop on Signal Processing Advances in Wireless Communication (SPAWC), 2022, pp. 1-5, doi: 10.1109/SPAWC51304.2022.9833984.
