@@ -1,7 +1,11 @@
 # A Random Access Protocol for RIS-Aided Wireless Communications
+[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![arXiv](https://img.shields.io/badge/arXiv-2506.23118-b31b1b.svg)](https://arxiv.org/abs/2404.14236)
+[![DOI](https://img.shields.io/badge/DOI-10.1109/SPAWC51304.2022.9833984)](https://ieeexplore.ieee.org/document/9833984)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 This is a research-oriented code package that is primarily intended to allow readers to replicate the results of the article mentioned below and also encourage and accelerate further research on this topic:
 
-V. Croisfelt, F. Saggese, I. Leyva-Mayorga, R. Kotaba, G. Gradoni and P. Popovski, ["A Random Access Protocol for RIS-Aided Wireless Communications,"](https://ieeexplore.ieee.org/document/9833984) 2022 IEEE 23rd International Workshop on Signal Processing Advances in Wireless Communication (SPAWC), 2022, pp. 1-5, doi: 10.1109/SPAWC51304.2022.9833984.
+V. Croisfelt, F. Saggese, I. Leyva-Mayorga, R. Kotaba, G. Gradoni, and P. Popovski, ["A Random Access Protocol for RIS-Aided Wireless Communications,"](https://ieeexplore.ieee.org/document/9833984) 2022 IEEE 23rd International Workshop on Signal Processing Advances in Wireless Communication (SPAWC), 2022, pp. 1-5, doi: 10.1109/SPAWC51304.2022.9833984.
 
 A pre-print version is available on https://arxiv.org/abs/2203.03377, which has content different from the published one.
 
@@ -14,10 +18,10 @@ Reconfigurable intelligent surfaces (RISs) are arrays of passive elements that c
 
 ## Content
 The codes provided here can be used to simulate Fig. 2 of the paper. The standard nomenclature adopted is as follows:
-  - scripts starting with the keyword "plot_" actually plots the figures using matplotlib and are saved within the /plots folder.
-  - scripts starting with the keyword "sim_" are used to generate the data for each curve in the plots. The data is saved in the /data folder and used by the respective "plot_" scripts.
+  - Scripts starting with the keyword "plot_" actually plot the figures using matplotlib and are saved within the /plots folder.
+  - Scripts starting with the keyword "sim_" are used to generate the data for each curve in the plots. The data is saved in the /data folder and used by the respective "plot_" scripts.
 
-Further details about each file can be found inside them.
+Further details about each file can be found inside it.
 
 ## Comment
 We use the access policies as described in the journal paper version of the above conference paper:
